@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Новая заявка — K8s доступ{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <h1 class="mb-4">{% if is_pipeline %}Run pipeline (ручной запуск){% else %}Заявка на проверку сетевого доступа (K8s){% endif %}</h1>
+
+    {% if errors %}
+    <div class="alert alert-danger" role="alert">
+        <ul class="mb-0">
+            {% for err in errors %}
+            <li>{{ err }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <form method="post" action="{% url 'ticket_requests:request_create' %}" class="needs-validation" novalidate>
+        {% csrf_token %}
+        <div class="row g-3">
+            <div class="col-12">
+                <label for="ticket_id" class="form-label">Номер заявки *</label>
+                <input type="text" class="form-control" id="ticket_id" name="ticket_id" value="{{ form_data.ticket_id|default:'' }}" required maxlength="255" placeholder="Напр. NET-12345">
+            </div>
+            <div class="col-12">
+                <label for="cluster" class="form-label">Кластер *</label>
+                <select class="form-select" id="cluster" name="cluster" required>
+                    <option value="">— выберите —</option>
+                    {% for code in cluster_choices %}
+                    <option value="{{ code }}" {% if form_data.cluster == code %}selected{% endif %}>{{ code }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label for="dst_host" class="form-label">dst_host *</label>
+                <input type="text" class="form-control" id="dst_host" name="dst_host" value="{{ form_data.dst_host|default:'' }}" required maxlength="255" placeholder="IP или hostname">
+            </div>
+            <div class="col-md-6">
+                <label for="dst_port" class="form-label">dst_port (1–65535) *</label>
+                <input type="number" class="form-control" id="dst_port" name="dst_port" value="{{ form_data.dst_port|default:'' }}" min="1" max="65535" required placeholder="443">
+            </div>
+            <div class="col-12">
+                <label for="comment" class="form-label">Комментарий</label>
+                <textarea class="form-control" id="comment" name="comment" rows="2" maxlength="2048">{{ form_data.comment|default:'' }}</textarea>
+            </div>
+            <div class="col-12">
+                <button type="submit" class="btn btn-primary">Отправить</button>
+                <a href="{% url 'ticket_requests:request_list' %}" class="btn btn-outline-secondary">К списку</a>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Заявки — K8s / AWX{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <h1 class="mb-4">Заявки на проверку доступа (K8s)</h1>
+
+    {% if request.GET.created %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        Заявка <strong>{{ request.GET.created }}</strong> создана. Статус: <strong>{{ request.GET.status }}</strong>.
+        <a href="{% url 'ticket_requests:request_list' %}">К списку</a>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+    {% if request.GET.run %}
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
+        {% if request.GET.msg == 'started' %}
+        Запуск workflow для заявки <strong>{{ request.GET.run }}</strong> выполнен.
+        {% elif request.GET.msg == 'error' %}
+        Ошибка запуска workflow для <strong>{{ request.GET.run }}</strong>. Статус возвращён в validated.
+        {% else %}
+        Заявка <strong>{{ request.GET.run }}</strong> уже выполняется или не в статусе validated.
+        {% endif %}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    <p class="mb-3">
+        <a href="{% url 'ticket_requests:request_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> Новая заявка
+        </a>
+    </p>
+
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>Номер заявки</th>
+                    <th>Источник</th>
+                    <th>Статус</th>
+                    <th>Workflow ID</th>
+                    <th>Создана</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in requests %}
+                <tr>
+                    <td><code>{{ r.ticket_id }}</code></td>
+                    <td>{{ r.source }}</td>
+                    <td>
+                        <span class="badge
+                            {% if r.status == 'validated' %}bg-primary
+                            {% elif r.status == 'in_progress' %}bg-warning text-dark
+                            {% elif r.status == 'success' %}bg-success
+                            {% elif r.status == 'failed' %}bg-danger
+                            {% elif r.status == 'needs_manual' %}bg-secondary
+                            {% else %}bg-light text-dark{% endif %}">
+                            {{ r.status }}
+                        </span>
+                    </td>
+                    <td>{% if r.workflow_id %}<code>{{ r.workflow_id }}</code>{% else %}—{% endif %}</td>
+                    <td>{{ r.created_at|date:"d.m.Y H:i" }}</td>
+                    <td>
+                        <form method="post" action="{% url 'ticket_requests:request_run' ticket_id=r.ticket_id %}" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-success" title="Запустить проверку доступа (повторно)">Run</button>
+                        </form>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-muted">Заявок пока нет.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
