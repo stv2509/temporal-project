@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Новая заявка — K8s доступ{% endblock %}
+{% block title %}{% if is_edit %}Редактирование заявки{% else %}Новая заявка{% endif %} — K8s доступ{% endblock %}
 
 {% block content %}
 <div class="container py-4">
-    <h1 class="mb-4">{% if is_pipeline %}Run pipeline (ручной запуск){% else %}Заявка на проверку сетевого доступа (K8s){% endif %}</h1>
+    <h1 class="mb-4">{% if is_edit %}Редактирование заявки{% elif is_pipeline %}Run pipeline (ручной запуск){% else %}Заявка на проверку сетевого доступа (K8s){% endif %}</h1>
 
     {% if errors %}
     <div class="alert alert-danger" role="alert">
@@ -17,12 +17,16 @@
     </div>
     {% endif %}
 
-    <form method="post" action="{% url 'infra_requests:request_create' %}" class="needs-validation" novalidate>
+    <form method="post" action="{% if is_edit %}{% url 'infra_requests:k8s_access_edit' ticket_id=edit_ticket_id %}{% else %}{% url 'infra_requests:k8s_access_create' %}{% endif %}" class="needs-validation" novalidate>
         {% csrf_token %}
         <div class="row g-3">
             <div class="col-12">
                 <label for="ticket_id" class="form-label">Номер заявки *</label>
+                {% if is_edit %}
+                <input type="text" class="form-control bg-light" id="ticket_id" value="{{ form_data.ticket_id|default:'' }}" readonly>
+                {% else %}
                 <input type="text" class="form-control" id="ticket_id" name="ticket_id" value="{{ form_data.ticket_id|default:'' }}" required maxlength="255" placeholder="Напр. NET-12345">
+                {% endif %}
             </div>
             <div class="col-12">
                 <label for="cluster" class="form-label">Кластер *</label>
@@ -46,8 +50,8 @@
                 <textarea class="form-control" id="comment" name="comment" rows="2" maxlength="2048">{{ form_data.comment|default:'' }}</textarea>
             </div>
             <div class="col-12">
-                <button type="submit" class="btn btn-primary">Отправить</button>
-                <a href="{% url 'infra_requests:request_list' %}" class="btn btn-outline-secondary">К списку</a>
+                <button type="submit" class="btn btn-primary">{% if is_edit %}Сохранить{% else %}Отправить{% endif %}</button>
+                <a href="{% url 'infra_requests:k8s_access_list' %}" class="btn btn-outline-secondary">К списку</a>
             </div>
         </div>
     </form>

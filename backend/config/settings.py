@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "drf_spectacular",
     "corsheaders",
     "apps.infra_requests",
 ]
@@ -132,12 +133,20 @@ LOGIN_URL = "/admin/login/"
 
 # REST Framework
 REST_FRAMEWORK = {
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 50,
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
         "rest_framework.authentication.BasicAuthentication",
     ],
+}
+
+# drf-spectacular (OpenAPI 3)
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Infra Requests API",
+    "DESCRIPTION": "API заявок на проверку доступа (K8s / AWX).",
+    "VERSION": "1.0.0",
 }
 
 # CORS (для dev; в production задать CORS_ALLOWED_ORIGINS)

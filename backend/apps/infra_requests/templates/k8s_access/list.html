@@ -10,7 +10,12 @@
     {% if request.GET.created %}
     <div class="alert alert-success alert-dismissible fade show" role="alert">
         Заявка <strong>{{ request.GET.created }}</strong> создана. Статус: <strong>{{ request.GET.status }}</strong>.
-        <a href="{% url 'infra_requests:request_list' %}">К списку</a>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+    {% if request.GET.edited %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        Заявка <strong>{{ request.GET.edited }}</strong> сохранена. Статус: <strong>{{ request.GET.status }}</strong>.
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
     {% endif %}
@@ -28,7 +33,7 @@
     {% endif %}
 
     <p class="mb-3">
-        <a href="{% url 'infra_requests:request_create' %}" class="btn btn-primary">
+        <a href="{% url 'infra_requests:k8s_access_create' %}" class="btn btn-primary">
             <i class="bi bi-plus-lg"></i> Новая заявка
         </a>
     </p>
@@ -64,7 +69,10 @@
                     <td>{% if r.workflow_id %}<code>{{ r.workflow_id }}</code>{% else %}—{% endif %}</td>
                     <td>{{ r.created_at|date:"d.m.Y H:i" }}</td>
                     <td>
-                        <form method="post" action="{% url 'infra_requests:request_run' ticket_id=r.ticket_id %}" class="d-inline">
+                        {% if r.status == 'needs_manual' or r.status == 'new' %}
+                        <a href="{% url 'infra_requests:k8s_access_edit' ticket_id=r.ticket_id %}" class="btn btn-sm btn-outline-primary me-1" title="Дополнить или исправить заявку">Исправить</a>
+                        {% endif %}
+                        <form method="post" action="{% url 'infra_requests:k8s_access_run' ticket_id=r.ticket_id %}" class="d-inline">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-sm btn-outline-success" title="Запустить проверку доступа (повторно)">Run</button>
                         </form>

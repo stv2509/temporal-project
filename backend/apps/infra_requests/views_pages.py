@@ -4,12 +4,12 @@ import logging
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 from apps.infra_requests.adapters import TemporalAdapter
 from apps.infra_requests.constants import CLUSTER_AWX_TEMPLATE
-from apps.infra_requests.models import RequestStatus, RequestType
+from apps.infra_requests.models import Request, RequestStatus, RequestType
 from apps.infra_requests.repositories import RequestRepository
 from apps.infra_requests.services import RequestService
 
@@ -22,24 +22,24 @@ def _get_requester(request) -> str:
 
 @login_required
 @require_GET
-def request_list(request):
+def k8s_access_list(request):
     """Список заявок с кнопкой Run."""
     requests = RequestRepository().list_by_filters(limit=100)
     return render(
         request,
-        "ticket_requests/request_list.html",
+        "k8s_access/list.html",
         {"requests": requests, "cluster_choices": list(CLUSTER_AWX_TEMPLATE.keys())},
     )
 
 
 @login_required
 @require_http_methods(["GET", "POST"])
-def request_create(request):
+def k8s_access_create(request):
     """Форма создания заявки. POST → сервис → редирект на список или сообщение."""
     if request.method == "GET":
         return render(
             request,
-            "ticket_requests/request_form.html",
+            "k8s_access/form.html",
             {
                 "cluster_choices": list(CLUSTER_AWX_TEMPLATE.keys()),
                 "is_pipeline": request.GET.get("pipeline") == "1",
@@ -59,7 +59,7 @@ def request_create(request):
     if errors:
         return render(
             request,
-            "ticket_requests/request_form.html",
+            "k8s_access/form.html",
             {
                 "cluster_choices": list(CLUSTER_AWX_TEMPLATE.keys()),
                 "errors": errors,
@@ -104,20 +104,119 @@ def request_create(request):
             service.update_status(ticket_id, RequestStatus.VALIDATED)
 
     url = (
-        reverse("infra_requests:request_list")
+        reverse("infra_requests:k8s_access_list")
         + f"?created={ticket_id}&status={req.status}"
+    )
+    return redirect(url)
+
+
+def _form_data_from_request(req: Request) -> dict:
+    """Собрать form_data для шаблона из заявки (normalized + ticket_id)."""
+    n = req.normalized or {}
+    port = n.get("dst_port")
+    return {
+        "ticket_id": req.ticket_id,
+        "cluster": n.get("cluster") or "",
+        "dst_host": n.get("dst_host") or "",
+        "dst_port": str(port) if port is not None else "",
+        "comment": n.get("comment") or "",
+    }
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def k8s_access_edit(request, ticket_id: str):
+    """Редактирование заявки (для needs_manual / new): форма с подставленными полями, сохранение через сервис."""
+    req = get_object_or_404(Request, ticket_id=ticket_id)
+
+    if request.method == "GET":
+        return render(
+            request,
+            "k8s_access/form.html",
+            {
+                "cluster_choices": list(CLUSTER_AWX_TEMPLATE.keys()),
+                "form_data": _form_data_from_request(req),
+                "is_edit": True,
+                "edit_ticket_id": ticket_id,
+            },
+        )
+
+    # POST: те же поля, ticket_id не меняем (берём из URL)
+    cluster = (request.POST.get("cluster") or "").strip()
+    dst_host = (request.POST.get("dst_host") or "").strip()
+    dst_port_str = (request.POST.get("dst_port") or "").strip()
+    comment = (request.POST.get("comment") or "").strip()
+
+    service = RequestService()
+    normalized, payload, errors = service.prepare_create_from_form(
+        ticket_id, cluster, dst_host, dst_port_str, comment
+    )
+    if errors:
+        return render(
+            request,
+            "k8s_access/form.html",
+            {
+                "cluster_choices": list(CLUSTER_AWX_TEMPLATE.keys()),
+                "errors": errors,
+                "form_data": {
+                    "ticket_id": ticket_id,
+                    "cluster": cluster,
+                    "dst_host": dst_host,
+                    "dst_port": dst_port_str,
+                    "comment": comment,
+                },
+                "is_edit": True,
+                "edit_ticket_id": ticket_id,
+            },
+            status=400,
+        )
+
+    updated = service.create_or_update(
+        ticket_id=ticket_id,
+        source=req.source,
+        request_type=req.type,
+        payload=payload,
+        normalized=normalized,
+        requester=_get_requester(request),
+    )
+
+    workflow_name = getattr(
+        settings, "TEMPORAL_WORKFLOW_K8S_ACCESS", "K8sAccessCheckWorkflow"
+    )
+    if updated.status == RequestStatus.VALIDATED:
+        try:
+            adapter = TemporalAdapter()
+            adapter.start_workflow(
+                workflow_id=ticket_id,
+                workflow_name=workflow_name,
+                args=[ticket_id],
+            )
+            service.update_status(
+                ticket_id, RequestStatus.IN_PROGRESS, workflow_id=ticket_id
+            )
+            updated.refresh_from_db()
+        except Exception as e:
+            logger.exception("Temporal start_workflow failed: %s", e)
+            service.update_status(ticket_id, RequestStatus.VALIDATED)
+
+    url = (
+        reverse("infra_requests:k8s_access_list")
+        + f"?edited={ticket_id}&status={updated.status}"
     )
     return redirect(url)
 
 
 @login_required
 @require_POST
-def request_run(request, ticket_id: str):
+def k8s_access_run(request, ticket_id: str):
     """POST: запуск workflow для заявки (кнопка Run). Разрешён повторный запуск для любых статусов."""
     service = RequestService()
     req = service.get_by_ticket_id(ticket_id)
     if not req:
-        url = reverse("infra_requests:request_list") + f"?run={ticket_id}&msg=not_found"
+        url = (
+            reverse("infra_requests:k8s_access_list")
+            + f"?run={ticket_id}&msg=not_found"
+        )
         return redirect(url)
 
     previous_status = req.status
@@ -126,7 +225,7 @@ def request_run(request, ticket_id: str):
         claimed = service.claim_for_run(ticket_id)
         if not claimed:
             url = (
-                reverse("infra_requests:request_list")
+                reverse("infra_requests:k8s_access_list")
                 + f"?run={ticket_id}&msg=already_running_or_invalid"
             )
             return redirect(url)
@@ -150,5 +249,5 @@ def request_run(request, ticket_id: str):
         logger.exception("Temporal start_workflow failed: %s", e)
         service.update_status(ticket_id, previous_status)
         msg = "error"
-    url = reverse("infra_requests:request_list") + f"?run={ticket_id}&msg={msg}"
+    url = reverse("infra_requests:k8s_access_list") + f"?run={ticket_id}&msg={msg}"
     return redirect(url)
