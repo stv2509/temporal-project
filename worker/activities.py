@@ -22,6 +22,7 @@ BACKEND_API_PASSWORD = os.environ.get("BACKEND_API_PASSWORD", "")
 
 AWX_URL = os.environ.get("AWX_URL", "").rstrip("/")
 AWX_USERNAME = os.environ.get("AWX_USERNAME", "")
+AWX_VERIFY_SSL = os.environ.get("AWX_VERIFY_SSL", "true").lower() == "true"
 
 
 def _decrypt_awx_password() -> str:
@@ -86,7 +87,7 @@ async def launch_awx_job(
             "port_dst": port_dst,
         }
     }
-    async with httpx.AsyncClient(timeout=120.0) as client:
+    async with httpx.AsyncClient(timeout=120.0, verify=AWX_VERIFY_SSL) as client:
         response = await client.post(url, json=payload, auth=auth)
         response.raise_for_status()
     result = response.json()
@@ -96,11 +97,43 @@ async def launch_awx_job(
 
 
 @activity.defn
-async def update_request_status(ticket_id: str, status: str) -> None:
-    """PATCH request status via DRF API."""
+async def get_awx_job_status(job_id: int) -> dict:
+    """GET AWX job status: GET /api/v2/jobs/{id}/. Returns status and message."""
+    if not AWX_URL:
+        raise ValueError("AWX_URL not set")
+    auth = _awx_auth()
+    if not auth:
+        raise ValueError("AWX_USERNAME/AWX_PASSWORD not set")
+    url = f"{AWX_URL}/api/v2/jobs/{job_id}/"
+    async with httpx.AsyncClient(timeout=30.0, verify=AWX_VERIFY_SSL) as client:
+        response = await client.get(url, auth=auth)
+        response.raise_for_status()
+    data = response.json()
+    status_val = data.get("status", "unknown")
+    message = (
+        data.get("result_traceback") or data.get("job_explanation") or ""
+    ).strip() or None
+    return {"status": status_val, "message": message}
+
+
+@activity.defn
+async def update_request_status(
+    ticket_id: str,
+    status: str,
+    awx: dict | None = None,
+) -> None:
+    """PATCH request status (and optional awx block into normalized) via DRF API."""
     url = f"{BACKEND_API_URL}/api/requests/{ticket_id}/"
     auth = _api_auth()
+    payload: dict = {"status": status}
+    if awx is not None:
+        payload["awx"] = awx
     async with httpx.AsyncClient(timeout=15.0) as client:
-        response = await client.patch(url, json={"status": status}, auth=auth)
+        response = await client.patch(url, json=payload, auth=auth)  # type: ignore[arg-type]
         response.raise_for_status()
-    logger.info("update_request_status ticket_id=%s status=%s", ticket_id, status)
+    logger.info(
+        "update_request_status ticket_id=%s status=%s awx=%s",
+        ticket_id,
+        status,
+        awx is not None,
+    )

@@ -7,10 +7,11 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
-from apps.ticket_requests.adapters import TemporalAdapter
-from apps.ticket_requests.constants import CLUSTER_AWX_TEMPLATE
-from apps.ticket_requests.models import Request, RequestStatus, RequestType
-from apps.ticket_requests.services import RequestService
+from apps.infra_requests.adapters import TemporalAdapter
+from apps.infra_requests.constants import CLUSTER_AWX_TEMPLATE
+from apps.infra_requests.models import RequestStatus, RequestType
+from apps.infra_requests.repositories import RequestRepository
+from apps.infra_requests.services import RequestService
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ def _get_requester(request) -> str:
 @require_GET
 def request_list(request):
     """Список заявок с кнопкой Run."""
-    requests = Request.objects.all().order_by("-created_at")[:100]
+    requests = RequestRepository().list_by_filters(limit=100)
     return render(
         request,
         "ticket_requests/request_list.html",
@@ -51,22 +52,10 @@ def request_create(request):
     dst_port_str = (request.POST.get("dst_port") or "").strip()
     comment = (request.POST.get("comment") or "").strip()
 
-    errors = []
-    if not ticket_id:
-        errors.append("Номер заявки обязателен.")
-    if not cluster:
-        errors.append("Выберите кластер.")
-    elif cluster not in CLUSTER_AWX_TEMPLATE:
-        errors.append("Недопустимый кластер.")
-    if not dst_host:
-        errors.append("dst_host обязателен.")
-    try:
-        dst_port = int(dst_port_str) if dst_port_str else None
-    except ValueError:
-        dst_port = None
-    if dst_port is None or not (1 <= dst_port <= 65535):
-        errors.append("dst_port: число от 1 до 65535.")
-
+    service = RequestService()
+    normalized, payload, errors = service.prepare_create_from_form(
+        ticket_id, cluster, dst_host, dst_port_str, comment
+    )
     if errors:
         return render(
             request,
@@ -86,23 +75,6 @@ def request_create(request):
             status=400,
         )
 
-    normalized = {
-        "cluster": cluster,
-        "dst_host": dst_host,
-        "dst_port": dst_port,
-        "awx_template_id": CLUSTER_AWX_TEMPLATE[cluster],
-    }
-    if comment:
-        normalized["comment"] = comment
-    payload = {
-        "ticket_id": ticket_id,
-        "cluster": cluster,
-        "dst_host": dst_host,
-        "dst_port": dst_port,
-        "comment": comment,
-    }
-
-    service = RequestService()
     req = service.create_or_update(
         ticket_id=ticket_id,
         source="manual",
@@ -131,7 +103,10 @@ def request_create(request):
             logger.exception("Temporal start_workflow failed: %s", e)
             service.update_status(ticket_id, RequestStatus.VALIDATED)
 
-    url = reverse("ticket_requests:request_list") + f"?created={ticket_id}&status={req.status}"
+    url = (
+        reverse("infra_requests:request_list")
+        + f"?created={ticket_id}&status={req.status}"
+    )
     return redirect(url)
 
 
@@ -142,7 +117,7 @@ def request_run(request, ticket_id: str):
     service = RequestService()
     req = service.get_by_ticket_id(ticket_id)
     if not req:
-        url = reverse("ticket_requests:request_list") + f"?run={ticket_id}&msg=not_found"
+        url = reverse("infra_requests:request_list") + f"?run={ticket_id}&msg=not_found"
         return redirect(url)
 
     previous_status = req.status
@@ -150,10 +125,15 @@ def request_run(request, ticket_id: str):
     if req.status == RequestStatus.VALIDATED:
         claimed = service.claim_for_run(ticket_id)
         if not claimed:
-            url = reverse("ticket_requests:request_list") + f"?run={ticket_id}&msg=already_running_or_invalid"
+            url = (
+                reverse("infra_requests:request_list")
+                + f"?run={ticket_id}&msg=already_running_or_invalid"
+            )
             return redirect(url)
     else:
-        service.update_status(ticket_id, RequestStatus.IN_PROGRESS, workflow_id=ticket_id)
+        service.update_status(
+            ticket_id, RequestStatus.IN_PROGRESS, workflow_id=ticket_id
+        )
 
     workflow_name = getattr(
         settings, "TEMPORAL_WORKFLOW_K8S_ACCESS", "K8sAccessCheckWorkflow"
@@ -170,5 +150,5 @@ def request_run(request, ticket_id: str):
         logger.exception("Temporal start_workflow failed: %s", e)
         service.update_status(ticket_id, previous_status)
         msg = "error"
-    url = reverse("ticket_requests:request_list") + f"?run={ticket_id}&msg={msg}"
+    url = reverse("infra_requests:request_list") + f"?run={ticket_id}&msg={msg}"
     return redirect(url)

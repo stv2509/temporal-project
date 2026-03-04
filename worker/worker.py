@@ -14,11 +14,11 @@ if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 load_dotenv(_repo_root / ".env")
 
-from temporalio.client import Client
-from temporalio.worker import Worker
+from temporalio.client import Client  # noqa: E402
+from temporalio.worker import Worker  # noqa: E402
 
-from worker import activities
-from worker.workflows import K8sAccessCheckWorkflow
+from worker import activities  # noqa: E402
+from worker.workflows import K8sAccessCheckWorkflow  # noqa: E402
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -36,6 +36,7 @@ async def main() -> None:
         workflows=[K8sAccessCheckWorkflow],
         activities=[
             activities.get_request_data,
+            activities.get_awx_job_status,
             activities.launch_awx_job,
             activities.update_request_status,
         ],

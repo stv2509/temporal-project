@@ -7,7 +7,7 @@
 ## Этап 1 — Инфраструктура и модель данных
 
 - [x] **1.1** Инициализировать Django-проект в `backend/` (config/settings.py, SQLite, DRF, CORS при необходимости)
-- [x] **1.2** Добавить приложение для заявок (`apps.ticket_requests` — имя `requests` конфликтует с пакетом Python)
+- [x] **1.2** Добавить приложение для заявок (`apps.infra_requests` — имя `requests` конфликтует с пакетом Python)
 - [x] **1.3** Модель заявки: таблица `requests` (id, ticket_id unique, source, type, status, requester, payload, normalized, workflow_id, created_at, updated_at)
 - [x] **1.4** Enum для status (new, needs_manual, validated, in_progress, success, failed) и type (k8s_access)
 - [x] **1.5** Индексы: ticket_id (unique), status, type, created_at

@@ -36,13 +36,16 @@ class TemporalAdapter:
         from temporalio.client import Client
         from temporalio.exceptions import WorkflowAlreadyStartedError
 
-        client = await Client.connect(self._host, namespace=self._namespace)
+        host = str(self._host or "localhost:7233")
+        namespace = str(self._namespace or "default")
+        task_queue = str(self._task_queue or "awx-task-queue")
+        client = await Client.connect(host, namespace=namespace)
         try:
-            await client.start_workflow(
+            await client.start_workflow(  # type: ignore[arg-type]
                 workflow_name,
                 *args,
                 id=workflow_id,
-                task_queue=self._task_queue,
+                task_queue=task_queue,
             )
             logger.info("Started workflow %s id=%s", workflow_name, workflow_id)
         except WorkflowAlreadyStartedError:

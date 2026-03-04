@@ -2,9 +2,9 @@
 
 from django.urls import path
 
-from apps.ticket_requests import views_pages
+from apps.infra_requests import views_pages
 
-app_name = "ticket_requests"
+app_name = "infra_requests"
 
 urlpatterns = [
     path("", views_pages.request_list, name="request_list"),

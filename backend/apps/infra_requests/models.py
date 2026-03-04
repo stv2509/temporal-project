@@ -23,28 +23,30 @@ class RequestType(models.TextChoices):
 class Request(models.Model):
     """Заявка (единый источник правды по ticket_id)."""
 
-    ticket_id = models.CharField("Ticket ID", max_length=255, unique=True, db_index=True)
-    source = models.CharField("Source", max_length=64)  # manual, webhook, ticket
-    type = models.CharField(
+    ticket_id = models.CharField(  # type: ignore[var-annotated]
+        "Ticket ID", max_length=255, unique=True, db_index=True
+    )
+    source = models.CharField("Source", max_length=64)  # type: ignore[var-annotated]  # manual, webhook, ticket
+    type = models.CharField(  # type: ignore[var-annotated]
         "Type",
         max_length=32,
         choices=RequestType.choices,
         default=RequestType.K8S_ACCESS,
         db_index=True,
     )
-    status = models.CharField(
+    status = models.CharField(  # type: ignore[var-annotated]
         "Status",
         max_length=32,
         choices=RequestStatus.choices,
         default=RequestStatus.NEW,
         db_index=True,
     )
-    requester = models.CharField("Requester", max_length=255, blank=True)
+    requester = models.CharField("Requester", max_length=255, blank=True)  # type: ignore[var-annotated]
     payload = models.JSONField("Payload (raw)", default=dict, blank=True)
     normalized = models.JSONField("Normalized fields", default=dict, blank=True)
-    workflow_id = models.CharField("Temporal workflow ID", max_length=255, blank=True)
-    created_at = models.DateTimeField("Created", auto_now_add=True)
-    updated_at = models.DateTimeField("Updated", auto_now=True)
+    workflow_id = models.CharField("Temporal workflow ID", max_length=255, blank=True)  # type: ignore[var-annotated]
+    created_at = models.DateTimeField("Created", auto_now_add=True)  # type: ignore[var-annotated]
+    updated_at = models.DateTimeField("Updated", auto_now=True)  # type: ignore[var-annotated]
 
     class Meta:
         db_table = "requests"

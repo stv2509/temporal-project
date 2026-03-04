@@ -2,7 +2,7 @@
 
 from django.db import transaction
 
-from apps.ticket_requests.models import Request, RequestStatus, RequestType
+from apps.infra_requests.models import Request, RequestStatus, RequestType
 
 
 class RequestRepository:
@@ -41,7 +41,9 @@ class RequestRepository:
 
     def list_by_status(self, status: str, limit: int = 100) -> list[Request]:
         """Список заявок по статусу."""
-        return list(Request.objects.filter(status=status).order_by("-created_at")[:limit])
+        return list(
+            Request.objects.filter(status=status).order_by("-created_at")[:limit]
+        )
 
     def list_by_filters(
         self,

@@ -3,20 +3,20 @@
 import logging
 
 from django.conf import settings
-from rest_framework import status, viewsets
-from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
+from rest_framework import status, viewsets  # type: ignore[import-untyped]
+from rest_framework.decorators import action  # type: ignore[import-untyped]
+from rest_framework.permissions import IsAuthenticated  # type: ignore[import-untyped]
+from rest_framework.response import Response  # type: ignore[import-untyped]
 
-from apps.ticket_requests.adapters import TemporalAdapter
-from apps.ticket_requests.models import Request, RequestStatus, RequestType
-from apps.ticket_requests.serializers import (
+from apps.infra_requests.adapters import TemporalAdapter
+from apps.infra_requests.models import Request, RequestStatus, RequestType
+from apps.infra_requests.serializers import (
     RequestCreateSerializer,
     RequestDetailSerializer,
     RequestListSerializer,
     RequestStatusUpdateSerializer,
 )
-from apps.ticket_requests.services import RequestService
+from apps.infra_requests.services import RequestService
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,19 @@ class RequestViewSet(viewsets.ModelViewSet):
         if self.action in ("update", "partial_update"):
             return RequestStatusUpdateSerializer
         return RequestDetailSerializer
+
+    def perform_update(self, serializer):
+        """Сохранить status и при наличии awx — merge в normalized."""
+        instance = serializer.instance
+        instance.status = serializer.validated_data["status"]
+        if (
+            "awx" in serializer.validated_data
+            and serializer.validated_data["awx"] is not None
+        ):
+            new_normalized = dict(instance.normalized)
+            new_normalized["awx"] = serializer.validated_data["awx"]
+            instance.normalized = new_normalized
+        instance.save(update_fields=["status", "normalized", "updated_at"])
 
     def create(self, request, *args, **kwargs):
         serializer = RequestCreateSerializer(data=request.data)

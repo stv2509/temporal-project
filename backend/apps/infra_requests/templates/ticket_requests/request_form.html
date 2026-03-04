@@ -17,7 +17,7 @@
     </div>
     {% endif %}
 
-    <form method="post" action="{% url 'ticket_requests:request_create' %}" class="needs-validation" novalidate>
+    <form method="post" action="{% url 'infra_requests:request_create' %}" class="needs-validation" novalidate>
         {% csrf_token %}
         <div class="row g-3">
             <div class="col-12">
@@ -47,7 +47,7 @@
             </div>
             <div class="col-12">
                 <button type="submit" class="btn btn-primary">Отправить</button>
-                <a href="{% url 'ticket_requests:request_list' %}" class="btn btn-outline-secondary">К списку</a>
+                <a href="{% url 'infra_requests:request_list' %}" class="btn btn-outline-secondary">К списку</a>
             </div>
         </div>
     </form>

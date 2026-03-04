@@ -1,9 +1,9 @@
 """Сериализаторы DRF для заявок."""
 
-from rest_framework import serializers
+from rest_framework import serializers  # type: ignore[import-untyped]
 
-from apps.ticket_requests.constants import CLUSTER_AWX_TEMPLATE
-from apps.ticket_requests.models import Request, RequestStatus, RequestType
+from apps.infra_requests.constants import CLUSTER_AWX_TEMPLATE
+from apps.infra_requests.models import Request
 
 
 class RequestCreateSerializer(serializers.Serializer):
@@ -87,7 +87,9 @@ class RequestDetailSerializer(serializers.ModelSerializer):
 
 
 class RequestStatusUpdateSerializer(serializers.ModelSerializer):
-    """Только статус — для PATCH из worker (update_request_status)."""
+    """Статус и опционально awx (merge в normalized) — для PATCH из worker."""
+
+    awx = serializers.DictField(required=False, allow_null=True)
 
     class Meta:
         model = Request
