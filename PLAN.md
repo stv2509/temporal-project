@@ -1,18 +1,26 @@
-# План работ: заявка на проверку сетевого доступа (K8s) + Temporal
+# План работ: заявки (K8s access, VM, DB) + Temporal
 
 Опирается на правила из `.cursor/rules/` (Django, DRF, typing 3.13+, Ruff) и на обсуждённую архитектуру (webhook → БД → Push-старт workflow, ручной запуск через форму).
 
-**Чеклист задач для отметки выполнения:** [TASKS_AWX.md](TASKS_AWX.md).
+**Чеклист задач по этапам:** [TASKS_AWX.md](TASKS_AWX.md).  
+**Архитектура и документация:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/TEMPORAL_ROLE_AND_BENEFITS.md](docs/TEMPORAL_ROLE_AND_BENEFITS.md), [docs/TICKET_ADAPTER_STARTER_NOTES.md](docs/TICKET_ADAPTER_STARTER_NOTES.md).
 
 ---
 
-## 1. Цель и границы MVP
+## 1. Цель и границы
+
+### MVP (текущее состояние)
 
 - **Ручной запуск**: форма (Django + Bootstrap) → сохранение заявки в БД → запуск Temporal workflow (Push: по кнопке Run или сразу после валидации).
-- **Тип заявки**: проверка сетевого доступа от кластеров K8s (поля: номер заявки, кластер, `dst_host`, `dst_port`).
+- **Тип заявки (реализован):** проверка сетевого доступа от кластеров K8s (поля: номер заявки, кластер, `dst_host`, `dst_port`, комментарий).
 - **БД**: SQLite на текущем этапе; схема заложена под последующий перенос на PostgreSQL.
-- **Temporal**: workflow и activities под AWX создаются в папке `worker/`; worker и starter — отдельные процессы в папках `worker/` и `starter/`.
-- **Webhook из тикет-системы**: вне MVP (оставить на следующий этап).
+- **Temporal**: workflow и activities под AWX в `worker/`; worker и starter — отдельные процессы.
+- **Webhook из тикет-системы**: вне MVP (следующий этап).
+
+### Дальнейшее развитие
+
+- **Типы заявок:** те же принципы (форма → сервис → workflow) для **создания VM** и **создания DB**; шаблоны и URL по типу потока: `k8s_access/`, затем `vm/`, `db/`.
+- **URL и шаблоны:** один префикс на тип потока (например `/k8s-access/`, позже `/vm/`, `/db/`), без общего `/requests/` в пути.
 
 ---
 
@@ -28,38 +36,48 @@
 
 ---
 
-## 3. Структура репозитория (предлагаемая)
+## 3. Структура репозитория (текущая)
 
 ```
 temporal-project/
 ├── .cursor/
-├── backend/                    # Django-проект (API + форма)
+├── backend/                         # Django (API + формы)
 │   ├── manage.py
-│   ├── config/                  # или <project_name>/
+│   ├── config/
 │   │   ├── settings.py
-│   │   ├── urls.py
+│   │   ├── urls.py                  # api/, api/schema/, api/docs/, k8s-access/
 │   │   └── ...
 │   ├── apps/
-│   │   └── requests/            # приложение заявок
-│   │       ├── models.py        # Request (ticket_id, source, type, status, payload, normalized, ...)
+│   │   └── infra_requests/          # приложение заявок (имя requests конфликтует с пакетом Python)
+│   │       ├── models.py            # Request (ticket_id, source, type, status, payload, normalized, ...)
+│   │       ├── adapters/            # TemporalAdapter
 │   │       ├── repositories/
 │   │       ├── services/
 │   │       ├── serializers.py
-│   │       ├── views.py / viewsets.py
-│   │       ├── urls.py
-│   │       └── ...
-│   └── requirements.txt         # Django, djangorestframework, psycopg2/sqlite, temporalio (клиент)
-├── worker/                      # Temporal worker (отдельный процесс)
+│   │       ├── views.py             # ViewSet API
+│   │       ├── views_pages.py       # k8s_access_list, k8s_access_create, k8s_access_edit, k8s_access_run
+│   │       ├── urls.py              # API роутер
+│   │       ├── urls_pages.py        # k8s-access/ (list, create, edit, run)
+│   │       └── templates/
+│   │           └── k8s_access/      # по типу потока; позже vm/, db/
+│   │               ├── list.html
+│   │               └── form.html
+│   └── requirements.txt             # Django, DRF, drf-spectacular, temporalio (клиент), ...
+├── worker/                          # Temporal worker (отдельный процесс)
 │   ├── worker.py
-│   ├── workflows.py             # workflow для K8s access + AWX
-│   ├── activities.py           # get_request_data, launch_awx_job, update_request_status
+│   ├── workflows.py                 # K8sAccessCheckWorkflow (get_request_data → launch_awx_job → poll get_awx_job_status → update_request_status)
+│   ├── activities.py                # get_request_data, launch_awx_job, get_awx_job_status, update_request_status
 │   └── requirements.txt
-├── starter/                     # Клиент для ручного/тестового запуска workflow
-│   ├── starter.py
-├── ARCHITECTURE.md
+├── starter/                         # Клиент для ручного/тестового запуска workflow
+│   └── starter.py
+├── docs/
+│   ├── ARCHITECTURE.md
+│   ├── TEMPORAL_ROLE_AND_BENEFITS.md
+│   └── TICKET_ADAPTER_STARTER_NOTES.md
 ├── PLAN.md
 ├── README.md
-└── requirements.txt             # общий минимум или ссылка на backend/worker
+├── TASKS_AWX.md                    # чеклист по этапам
+└── requirements.txt
 ```
 
 ---
@@ -70,7 +88,7 @@ temporal-project/
 
 1. **Инициализация Django-проекта**
    - Создать проект (например, `backend/`), настроить `config/settings.py` (SQLite по умолчанию, DRF, CORS при необходимости).
-   - Добавить приложение `requests` для заявок.
+   - Добавить приложение заявок (в проекте: `infra_requests`).
 
 2. **Модель заявки и миграции**
    - Таблица `requests`: `id`, `ticket_id` (unique), `source`, `type`, `status`, `requester`, `payload` (JSONField), `normalized` (JSONField), `workflow_id`, `created_at`, `updated_at`.
@@ -80,7 +98,7 @@ temporal-project/
    - Создать миграции, применить на SQLite.
 
 3. **Справочник кластер → AWX template id**
-   - Для MVP: константа/Enum в коде (словарь `CLUSTER_AWX_TEMPLATE`) в `requests` app.
+   - Для MVP: константа в коде (словарь `CLUSTER_AWX_TEMPLATE`) в приложении заявок.
    - Значения: DEV→14, GUEST→239, OFFICE→26, OSA→128, PL→21, TEST1→16, TEST3→19, TEST4→17, TEST5→18, TEST6_PG→20, TEST7→22, TEST8→241.
 
 ---
@@ -119,63 +137,66 @@ temporal-project/
    - Единый формат ошибок (DRF exception handler или drf-standardized-errors).
 
 9. **URL и роутер**
-   - Подключить роутер для `requests`; зарегистрировать `api/requests` и action/detail для `run`.
+   - Роутер для заявок: `api/requests` (list, retrieve, create, PATCH, action `run`). Страницы с формами: отдельный urlconf под префиксом (например `k8s-access/` в корневом urls.py).
 
 ---
 
 ### Этап 4 — Форма (Django + Bootstrap)
 
-10. **Шаблон формы**
-    - Страница с формой: номер заявки (обязательный), выбор кластера (select из списка кластеров), `dst_host`, `dst_port`.
-    - Submit → POST на DRF API (например, `/api/requests/`) или на Django view, который вызывает тот же сервис.
-    - После успеха — редирект или сообщение со ссылкой на заявку `/requests/{ticket_id}` и статусом.
+10. **Шаблон формы (K8s access)**
+    - Страница с формой: номер заявки (обязательный), выбор кластера (select), `dst_host`, `dst_port`, комментарий.
+    - Submit → Django view (сервис); после успеха — редирект на список с параметрами `created`, `status`.
+    - Шаблоны по типу потока: `k8s_access/list.html`, `k8s_access/form.html` (позже — `vm/`, `db/`).
 
 11. **Страница списка заявок и кнопка Run**
-    - Список заявок (данные с API или через Django view), напротив каждой — кнопка Run (вызов `POST /api/requests/{ticket_id}/run`).
-    - Отображение статуса (new, validated, in_progress, success, failed, needs_manual).
+    - Список заявок (view + repository), напротив каждой — кнопка Run (`POST /k8s-access/{ticket_id}/run/`).
+    - Отображение статуса (new, needs_manual, validated, in_progress, success, failed).
+    - Для заявок в статусе **needs_manual** и **new** — кнопка «Исправить» → страница редактирования (форма с подставленными полями, сохранение через тот же сервис).
 
-12. **Страница RunPipeline (опционально для MVP)**
-    - Отдельная страница для ручного запуска pipeline (та же форма создания заявки) + при желании массовый запуск/история — можно отложить на след. итерацию.
+12. **Редактирование заявки (needs_manual)**
+    - URL: `/k8s-access/{ticket_id}/edit/`. GET — форма с данными из заявки (normalized); POST — валидация и create_or_update, при успешной валидации возможен автозапуск workflow. Номер заявки при редактировании только для чтения.
 
----
-
-### Этап 5 — Temporal: workflow и activity для K8s access
-
-13. **Workflow**
-    - Новый workflow (например, `K8sAccessCheckWorkflow`): входной параметр `ticket_id`. В workflow: activity «получить данные заявки из БД» (по ticket_id), activity «запуск AWX job» (передать awx_template_id, host_dst, port_dst), при успехе — activity «обновить статус заявки в БД» (success) и при необходимости «закрыть/комментировать тикет» (заглушка). При ошибке — обновить статус failed.
-
-14. **Activities**
-    - `get_request_data(ticket_id)` — получение данных заявки через **HTTP GET к DRF API** (`GET /api/requests/{ticket_id}/`), т.к. worker — отдельный процесс от Django.
-    - `launch_awx_job(awx_template_id, host_dst, port_dst)` — **реальный вызов AWX API**: POST на `{AWX_URL}/api/v2/job_templates/{id}/launch/`, Basic Auth (логин/токен из env), тело `{"extra_vars": {"host_dst": "...", "port_dst": ...}}`. URL и учётные данные — из настроек (env).
-    - `update_request_status(ticket_id, status)` — обновление статуса через **HTTP PATCH к DRF API** (например, `PATCH /api/requests/{ticket_id}/` с полем status).
-    - Идемпотентность: по возможности сохранять `awx_job_id` в заявке и при повторе проверять статус job в AWX.
-
-15. **Worker**
-    - Зарегистрировать новый workflow и новые activities; task_queue общий или отдельный по необходимости.
-    - Зависимости: temporalio; при вызове БД/API из activity — httpx или Django/ORM (если worker в одном проекте с Django, иначе — только HTTP/клиент к backend).
+13. **Страница RunPipeline (опционально)**
+    - Та же форма создания, вход по ссылке с `?pipeline=1`; массовый запуск/история — на следующих итерациях.
 
 ---
 
-### Этап 6 — Интеграция и порядок запуска
+### Этап 5 — Temporal: workflow и activities для K8s access
 
-16. **Связка Django → Temporal**
-    - В месте старта workflow (после create или по `POST .../run`) использовать один и тот же `TemporalAdapter` с `workflow_id = ticket_id`.
-    - Обработка ошибок: при падении старта — откат status обратно в `validated` и запись ошибки (поле `last_error` или аналог); опционально retry по расписанию (cron/management command).
+14. **Workflow**
+    - `K8sAccessCheckWorkflow(ticket_id)`: получить данные заявки (activity) → запустить AWX job (activity) → цикл опроса статуса job (`workflow.sleep` + activity `get_awx_job_status`) до терминального статуса → activity «обновить статус заявки» (success/failed) с опциональным блоком `awx` (job_id, status, message) в normalized. При ошибке — обновить статус failed.
 
-17. **Документация (отдельные файлы под AWX-кейс)**
-    - Создать **README_AWX.md**: как поднять Django, как запустить worker и starter, как открыть форму и запустить заявку на проверку доступа (K8s + AWX).
-    - Создать **ARCHITECTURE_AWX.md**: заявки (таблица, статусы, поток Push), взаимодействие Django ↔ Temporal ↔ AWX, пример запуска AWX job (curl на `https://awx.example.com`, extra_vars).
+15. **Activities**
+    - `get_request_data(ticket_id)` — **HTTP GET** к DRF API (`GET /api/requests/{ticket_id}/`).
+    - `launch_awx_job(awx_template_id, host_dst, port_dst)` — **POST** на AWX API `.../job_templates/{id}/launch/`, Basic Auth, `extra_vars: { host_dst, port_dst }`; URL и учётные данные из env.
+    - `get_awx_job_status(job_id)` — **GET** AWX `.../jobs/{id}/`, возврат status и message (для цикла опроса в workflow).
+    - `update_request_status(ticket_id, status, awx=None)` — **HTTP PATCH** к DRF API с полем `status` и опционально `awx` (merge в normalized на стороне backend).
+    - Идемпотентность: сохранять `awx_job_id` в заявке (через awx), при повторе при необходимости проверять статус job в AWX.
 
-18. **Качество кода**
-    - Прогнать `ruff check . --fix`, `ruff format .`; при необходимости `mypy` для backend и worker.
-    - Типы и Enum — по правилам django-data-modeling и typing-cheatsheet.
+16. **Worker**
+    - Зарегистрировать workflow и все activities; task_queue (например `awx-task-queue`). Зависимости: temporalio, httpx.
+
+---
+
+### Этап 6 — Интеграция и документация
+
+17. **Связка Django → Temporal**
+    - При create и при `POST .../run` — один и тот же `TemporalAdapter.start_workflow(workflow_id=ticket_id, ...)`.
+    - При ошибке старта — откат status в `validated`, логирование; при необходимости retry (cron/management command).
+
+18. **API и документация**
+    - **drf-spectacular**: OpenAPI 3 схема (`/api/schema/`), Swagger UI (`/api/docs/`). Сериализаторы и ViewSet совместимы с DEFAULT_SCHEMA_CLASS.
+    - **Документация** в `docs/`: ARCHITECTURE.md (Temporal, workflow, activities), TEMPORAL_ROLE_AND_BENEFITS.md (зачем Temporal, преимущества), TICKET_ADAPTER_STARTER_NOTES.md (интеграция с тикет-системой). README в корне — общий запуск Django, worker, форма и заявки.
+
+19. **Качество кода**
+    - `ruff check . --fix`, `ruff format .`; при необходимости `mypy`. Типы и Enum — по правилам django-data-modeling и typing-cheatsheet.
 
 ---
 
 ## 5. Зависимости (кратко)
 
-- **Backend (Django):** Django, djangorestframework, django-cors-headers (если нужен отдельный фронт), temporalio (клиент), sqlite (встроен), позже psycopg2.
-- **Worker:** temporalio, при необходимости httpx для вызова backend API из activities.
+- **Backend (Django):** Django, djangorestframework, drf-spectacular, django-cors-headers, temporalio (клиент), python-dotenv, sqlite (встроен), позже psycopg2.
+- **Worker:** temporalio, httpx (вызов backend API и AWX), cryptography (Fernet для AWX_PASSWORD_ENCRYPTED при необходимости).
 - **Общее:** Python 3.13+, Ruff, mypy в dev.
 
 ---
@@ -190,5 +211,8 @@ temporal-project/
 
 ## 7. Принятые решения
 
-- **Структура репозитория:** отдельные папки: Django в `backend/`, Temporal worker в `worker/`, клиент для запуска workflow в `starter/`. Файлы `starter.py`, `worker.py`, `workflows.py`, `activities.py` в корне удалены (ветка под AWX-кейс).
-- **Примеры и документация по AWX:** в коде, в **README_AWX.md** и **ARCHITECTURE_AWX.md** использовать только абстрактный хост для примеров: `https://awx.example.com`. Реальный URL и учётные данные — исключительно из env, без дефолтов в репозитории.
+- **Структура репозитория:** Django в `backend/`, worker в `worker/`, starter в `starter/`. Документация в `docs/` (ARCHITECTURE.md, TEMPORAL_ROLE_AND_BENEFITS.md, TICKET_ADAPTER_STARTER_NOTES.md).
+- **Приложение заявок:** имя `infra_requests` (избежание конфликта с пакетом `requests`).
+- **URL и шаблоны по типу потока:** префикс в браузере без `/requests/` — сразу по типу: `/k8s-access/` (list, create, edit, run). View и URL names: `k8s_access_list`, `k8s_access_create`, `k8s_access_edit`, `k8s_access_run`. Шаблоны в `templates/k8s_access/` (list.html, form.html). Для VM и DB — аналогично `/vm/`, `/db/` и папки `vm/`, `db/`.
+- **Редактирование заявки:** для статусов needs_manual и new — страница `/k8s-access/{ticket_id}/edit/` с формой (данные из normalized), сохранение через тот же сервис; при успешной валидации возможен автозапуск workflow.
+- **AWX и секреты:** в коде и документации для примеров — только абстрактный хост `https://awx.example.com`. Реальные URL и учётные данные — из env, без дефолтов в репозитории.
