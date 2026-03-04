@@ -40,7 +40,7 @@ class TemporalAdapter:
         try:
             await client.start_workflow(
                 workflow_name,
-                args,
+                *args,
                 id=workflow_id,
                 task_queue=self._task_queue,
             )

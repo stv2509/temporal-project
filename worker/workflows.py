@@ -20,7 +20,7 @@ class K8sAccessCheckWorkflow:
     async def run(self, ticket_id: str) -> dict:
         request_data = await workflow.execute_activity(
             get_request_data,
-            ticket_id,
+            args=[ticket_id],
             start_to_close_timeout=timedelta(seconds=30),
         )
         normalized = request_data.get("normalized") or {}
@@ -31,8 +31,7 @@ class K8sAccessCheckWorkflow:
         if not awx_template_id or not host_dst or not port_dst:
             await workflow.execute_activity(
                 update_request_status,
-                ticket_id,
-                "failed",
+                args=[ticket_id, "failed"],
                 start_to_close_timeout=timedelta(seconds=15),
             )
             return {"status": "failed", "reason": "missing normalized fields"}
@@ -40,15 +39,12 @@ class K8sAccessCheckWorkflow:
         try:
             await workflow.execute_activity(
                 launch_awx_job,
-                awx_template_id,
-                host_dst,
-                port_dst,
+                args=[awx_template_id, host_dst, port_dst],
                 start_to_close_timeout=timedelta(minutes=10),
             )
             await workflow.execute_activity(
                 update_request_status,
-                ticket_id,
-                "success",
+                args=[ticket_id, "success"],
                 start_to_close_timeout=timedelta(seconds=15),
             )
             return {"status": "success"}
@@ -56,8 +52,7 @@ class K8sAccessCheckWorkflow:
             workflow.logger.exception("AWX job failed: %s", e)
             await workflow.execute_activity(
                 update_request_status,
-                ticket_id,
-                "failed",
+                args=[ticket_id, "failed"],
                 start_to_close_timeout=timedelta(seconds=15),
             )
             return {"status": "failed", "reason": str(e)}
