@@ -93,7 +93,7 @@ class RequestStatusUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Request
-        fields = ["status"]
+        fields = ["status", "awx"]
 
 
 class RequestRunResponseSerializer(serializers.Serializer):
