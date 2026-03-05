@@ -40,32 +40,35 @@
 
 ## Этап 4 — Форма (Django + Bootstrap)
 
-- [x] **4.1** Шаблон формы: номер заявки, кластер (select), dst_host, dst_port; submit → view → сервис
+- [x] **4.1** Шаблон формы (k8s_access/form.html): номер заявки, кластер (select), dst_host, dst_port, комментарий; submit → view → сервис
 - [x] **4.2** После успеха — редирект на список с GET-параметрами created, status; сообщение в списке
-- [x] **4.3** Страница списка заявок + кнопка Run у каждой (POST /requests/<ticket_id>/run/), отображение статуса
-- [x] **4.4** (Опционально) Run pipeline — та же форма, вход по ссылке «Run pipeline (ручной запуск)» (/requests/create/?pipeline=1)
-- [x] **4.5 Проверка:** `python manage.py runserver`. Войти в /admin/, открыть /requests/, заполнить форму и отправить; нажать Run у записи со статусом validated. Убедиться, что редирект/сообщения и отображение статусов работают.
+- [x] **4.3** Страница списка (k8s_access/list.html) + кнопка Run у каждой (POST /k8s-access/<ticket_id>/run/), отображение статуса; для needs_manual/new — кнопка «Исправить»
+- [x] **4.4** Страница редактирования заявки: /k8s-access/<ticket_id>/edit/ (форма с данными из normalized, сохранение через сервис, при успешной валидации — автозапуск workflow)
+- [x] **4.5** (Опционально) Run pipeline — та же форма, вход по ссылке с /k8s-access/create/?pipeline=1
+- [x] **4.6 Проверка:** Открыть /k8s-access/, создать заявку, при needs_manual — «Исправить» → дописать и сохранить; нажать Run у validated. Убедиться, что редирект и статусы работают.
 
 ---
 
 ## Этап 5 — Temporal: workflow и activities
 
-- [x] **5.1** Workflow K8sAccessCheckWorkflow(ticket_id): get_request_data → launch_awx_job → update_request_status (success/failed)
+- [x] **5.1** Workflow K8sAccessCheckWorkflow(ticket_id): get_request_data → launch_awx_job → цикл опроса get_awx_job_status (workflow.sleep + activity) → update_request_status (success/failed) с блоком awx (job_id, status, message)
 - [x] **5.2** Activity get_request_data(ticket_id) — HTTP GET к DRF API
 - [x] **5.3** Activity launch_awx_job(awx_template_id, host_dst, port_dst) — POST на AWX API (Basic Auth, extra_vars), URL/учётные данные из env
-- [x] **5.4** Activity update_request_status(ticket_id, status) — HTTP PATCH к DRF API
-- [x] **5.5** Worker: зарегистрировать workflow и activities, task_queue; зависимости temporalio, httpx
-- [ ] **5.6 Проверка:** Запустить Temporal Server (локально или dev). Запустить Django (`runserver`). Запустить worker (`python worker/worker.py`). Создать заявку через API или форму и нажать Run (или вызвать `POST .../run`). В Temporal UI убедиться, что workflow появился и выполнился; в БД/API статус заявки обновился (in_progress → success/failed). При наличии AWX — проверить запуск job в AWX.
+- [x] **5.4** Activity get_awx_job_status(job_id) — GET AWX jobs/{id}, возврат status и message для опроса в workflow
+- [x] **5.5** Activity update_request_status(ticket_id, status, awx=None) — HTTP PATCH к DRF API (awx merge в normalized)
+- [x] **5.6** Worker: зарегистрировать workflow и все activities, task_queue; зависимости temporalio, httpx
+- [ ] **5.7 Проверка:** Запустить Temporal Server, Django, worker. Создать заявку через /k8s-access/ и нажать Run. В Temporal UI — workflow выполнился; в БД статус in_progress → success/failed. При наличии AWX — job запущен, в normalized записан awx (job_id, status).
 
 ---
 
 ## Этап 6 — Интеграция и документация
 
-- [ ] **6.1** Связка: при create и при /run использовать TemporalAdapter с workflow_id=ticket_id; при ошибке старта — откат status, last_error
-- [ ] **6.2** README_AWX.md: запуск Django, worker, starter, форма и заявка
-- [ ] **6.3** ARCHITECTURE_AWX.md: таблица заявок, статусы, поток Push, Django ↔ Temporal ↔ AWX, пример curl на awx.example.com
-- [ ] **6.4** Ruff (check --fix, format), при необходимости mypy; типы по правилам проекта
-- [ ] **6.5 Проверка:** Полный прогон: форма → создание заявки → Run → workflow выполняется → статус success/failed, при интеграции с AWX — job в AWX запущен. Проверить по README_AWX.md порядок запуска сервисов.
+- [x] **6.1** Связка: при create и при POST /k8s-access/<id>/run/ использовать TemporalAdapter с workflow_id=ticket_id; при ошибке старта — откат status в validated, логирование
+- [x] **6.2** drf-spectacular: OpenAPI схема (/api/schema/), Swagger UI (/api/docs/); сериализаторы с полем awx в RequestStatusUpdateSerializer
+- [ ] **6.3** README (в корне): запуск Django, worker, starter; как открыть /k8s-access/, форма и заявка, порядок запуска сервисов
+- [ ] **6.4** Документация в docs/: ARCHITECTURE.md (поток заявок, Django ↔ Temporal ↔ AWX), TEMPORAL_ROLE_AND_BENEFITS.md, TICKET_ADAPTER_STARTER_NOTES.md — актуализировать при необходимости
+- [ ] **6.5** Ruff (check --fix, format), при необходимости mypy; типы по правилам проекта
+- [ ] **6.6 Проверка:** Полный прогон: /k8s-access/ → создание заявки → Run → workflow выполняется → статус success/failed. При AWX — job запущен. Проверить /api/docs/ (Swagger).
 
 ---
 
