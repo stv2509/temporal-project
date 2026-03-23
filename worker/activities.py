@@ -110,9 +110,7 @@ async def get_awx_job_status(job_id: int) -> dict:
         response.raise_for_status()
     data = response.json()
     status_val = data.get("status", "unknown")
-    message = (
-        data.get("result_traceback") or data.get("job_explanation") or ""
-    ).strip() or None
+    message = (data.get("result_traceback") or data.get("job_explanation") or "").strip() or None
     return {"status": status_val, "message": message}
 
 

@@ -19,12 +19,8 @@ class TemporalAdapter:
         task_queue: str | None = None,
     ) -> None:
         self._host = host or getattr(settings, "TEMPORAL_HOST", "localhost:7233")
-        self._namespace = namespace or getattr(
-            settings, "TEMPORAL_NAMESPACE", "default"
-        )
-        self._task_queue = task_queue or getattr(
-            settings, "TEMPORAL_TASK_QUEUE", "awx-task-queue"
-        )
+        self._namespace = namespace or getattr(settings, "TEMPORAL_NAMESPACE", "default")
+        self._task_queue = task_queue or getattr(settings, "TEMPORAL_TASK_QUEUE", "awx-task-queue")
 
     async def start_workflow_async(
         self,

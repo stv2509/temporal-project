@@ -38,7 +38,10 @@ class RequestService:
         )
 
     def validate_normalized(self, request_type: str, normalized: dict) -> bool:
-        """Проверка обязательных полей для типа заявки. Для k8s_access: cluster, dst_host, dst_port."""
+        """Проверка обязательных полей для типа заявки.
+
+        Для k8s_access: cluster, dst_host, dst_port.
+        """
         match request_type:
             case RequestType.K8S_ACCESS:
                 cluster = normalized.get("cluster")
@@ -76,7 +79,10 @@ class RequestService:
         dst_port_str: str,
         comment: str = "",
     ) -> tuple[dict, dict, list[str]]:
-        """Валидация полей формы и подготовка normalized/payload. Возвращает (normalized, payload, errors)."""
+        """Валидация полей формы и подготовка normalized/payload.
+
+        Возвращает (normalized, payload, errors).
+        """
         errors: list[str] = []
         if not ticket_id:
             errors.append("Номер заявки обязателен.")

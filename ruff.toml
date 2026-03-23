@@ -1,0 +1,42 @@
+target-version = "py313"
+line-length = 100
+src = ["backend", "worker"]
+
+[lint]
+# Набор правил:
+# - UP: pyupgrade — современный синтаксис (PEP 604, 585 и др.)
+# - F: Pyflakes — базовые ошибки
+# - E/W: pycodestyle — стиль и предупреждения
+# - I: isort — сортировка импортов
+# - B: bugbear — поиск типичных багов
+# - SIM: simplify — упрощение кода
+select = [
+    "UP",
+    "F",
+    "E",
+    "W",
+    "I",
+    "B",
+    "SIM",
+]
+
+# Типичные исключения для Django-проекта
+exclude = [
+    ".git",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "migrations",
+]
+
+[lint.isort]
+known-first-party = ["backend", "worker"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+

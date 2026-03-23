@@ -60,21 +60,15 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "requester",
-                    models.CharField(
-                        blank=True, max_length=255, verbose_name="Requester"
-                    ),
+                    models.CharField(blank=True, max_length=255, verbose_name="Requester"),
                 ),
                 (
                     "payload",
-                    models.JSONField(
-                        blank=True, default=dict, verbose_name="Payload (raw)"
-                    ),
+                    models.JSONField(blank=True, default=dict, verbose_name="Payload (raw)"),
                 ),
                 (
                     "normalized",
-                    models.JSONField(
-                        blank=True, default=dict, verbose_name="Normalized fields"
-                    ),
+                    models.JSONField(blank=True, default=dict, verbose_name="Normalized fields"),
                 ),
                 (
                     "workflow_id",
@@ -99,9 +93,7 @@ class Migration(migrations.Migration):
                 "indexes": [
                     models.Index(fields=["status"], name="requests_status_58d546_idx"),
                     models.Index(fields=["type"], name="requests_type_24f553_idx"),
-                    models.Index(
-                        fields=["created_at"], name="requests_created_4c1c4c_idx"
-                    ),
+                    models.Index(fields=["created_at"], name="requests_created_4c1c4c_idx"),
                 ],
             },
         ),

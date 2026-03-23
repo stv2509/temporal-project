@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "temporal-docs": {
+      "transport": "http",
+      "url": "https://temporal.mcp.kapa.ai"
+    }
+  }
+}
+

@@ -7,6 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
+
 from apps.infra_requests.adapters import TemporalAdapter
 from apps.infra_requests.constants import CLUSTER_AWX_TEMPLATE
 from apps.infra_requests.models import Request, RequestStatus, RequestType
@@ -84,9 +85,7 @@ def k8s_access_create(request):
         requester=_get_requester(request),
     )
 
-    workflow_name = getattr(
-        settings, "TEMPORAL_WORKFLOW_K8S_ACCESS", "K8sAccessCheckWorkflow"
-    )
+    workflow_name = getattr(settings, "TEMPORAL_WORKFLOW_K8S_ACCESS", "K8sAccessCheckWorkflow")
     if req.status == RequestStatus.VALIDATED:
         try:
             adapter = TemporalAdapter()
@@ -95,18 +94,13 @@ def k8s_access_create(request):
                 workflow_name=workflow_name,
                 args=[ticket_id],
             )
-            service.update_status(
-                ticket_id, RequestStatus.IN_PROGRESS, workflow_id=ticket_id
-            )
+            service.update_status(ticket_id, RequestStatus.IN_PROGRESS, workflow_id=ticket_id)
             req.refresh_from_db()
         except Exception as e:
             logger.exception("Temporal start_workflow failed: %s", e)
             service.update_status(ticket_id, RequestStatus.VALIDATED)
 
-    url = (
-        reverse("infra_requests:k8s_access_list")
-        + f"?created={ticket_id}&status={req.status}"
-    )
+    url = reverse("infra_requests:k8s_access_list") + f"?created={ticket_id}&status={req.status}"
     return redirect(url)
 
 
@@ -126,7 +120,10 @@ def _form_data_from_request(req: Request) -> dict:
 @login_required
 @require_http_methods(["GET", "POST"])
 def k8s_access_edit(request, ticket_id: str):
-    """Редактирование заявки (для needs_manual / new): форма с подставленными полями, сохранение через сервис."""
+    """Редактирование заявки для needs_manual / new.
+
+    Форма с подставленными полями, сохранение через сервис.
+    """
     req = get_object_or_404(Request, ticket_id=ticket_id)
 
     if request.method == "GET":
@@ -180,9 +177,7 @@ def k8s_access_edit(request, ticket_id: str):
         requester=_get_requester(request),
     )
 
-    workflow_name = getattr(
-        settings, "TEMPORAL_WORKFLOW_K8S_ACCESS", "K8sAccessCheckWorkflow"
-    )
+    workflow_name = getattr(settings, "TEMPORAL_WORKFLOW_K8S_ACCESS", "K8sAccessCheckWorkflow")
     if updated.status == RequestStatus.VALIDATED:
         try:
             adapter = TemporalAdapter()
@@ -191,36 +186,33 @@ def k8s_access_edit(request, ticket_id: str):
                 workflow_name=workflow_name,
                 args=[ticket_id],
             )
-            service.update_status(
-                ticket_id, RequestStatus.IN_PROGRESS, workflow_id=ticket_id
-            )
+            service.update_status(ticket_id, RequestStatus.IN_PROGRESS, workflow_id=ticket_id)
             updated.refresh_from_db()
         except Exception as e:
             logger.exception("Temporal start_workflow failed: %s", e)
             service.update_status(ticket_id, RequestStatus.VALIDATED)
 
-    url = (
-        reverse("infra_requests:k8s_access_list")
-        + f"?edited={ticket_id}&status={updated.status}"
-    )
+    url = reverse("infra_requests:k8s_access_list") + f"?edited={ticket_id}&status={updated.status}"
     return redirect(url)
 
 
 @login_required
 @require_POST
 def k8s_access_run(request, ticket_id: str):
-    """POST: запуск workflow для заявки (кнопка Run). Разрешён повторный запуск для любых статусов."""
+    """POST: запуск workflow для заявки (кнопка Run).
+
+    Разрешён повторный запуск для любых статусов.
+    """
     service = RequestService()
     req = service.get_by_ticket_id(ticket_id)
     if not req:
-        url = (
-            reverse("infra_requests:k8s_access_list")
-            + f"?run={ticket_id}&msg=not_found"
-        )
+        url = reverse("infra_requests:k8s_access_list") + f"?run={ticket_id}&msg=not_found"
         return redirect(url)
 
     previous_status = req.status
-    # validated: атомарный claim; остальные (success, failed, needs_manual, new): просто ставим in_progress и стартуем
+    # validated: атомарный claim;
+    # остальные (success, failed, needs_manual, new):
+    # просто ставим in_progress и стартуем
     if req.status == RequestStatus.VALIDATED:
         claimed = service.claim_for_run(ticket_id)
         if not claimed:
@@ -230,13 +222,9 @@ def k8s_access_run(request, ticket_id: str):
             )
             return redirect(url)
     else:
-        service.update_status(
-            ticket_id, RequestStatus.IN_PROGRESS, workflow_id=ticket_id
-        )
+        service.update_status(ticket_id, RequestStatus.IN_PROGRESS, workflow_id=ticket_id)
 
-    workflow_name = getattr(
-        settings, "TEMPORAL_WORKFLOW_K8S_ACCESS", "K8sAccessCheckWorkflow"
-    )
+    workflow_name = getattr(settings, "TEMPORAL_WORKFLOW_K8S_ACCESS", "K8sAccessCheckWorkflow")
     try:
         adapter = TemporalAdapter()
         adapter.start_workflow(

@@ -1,0 +1,158 @@
+---
+title: "Python: Ruff и практические рекомендации 3.13+"
+description: "Конфигурация Ruff для автопроверки кода, миграция на современный синтаксис, подсказки агента и ресурсы (дополнение к python-modern-syntax)."
+globs: ["**/*.py", "**/pyproject.toml"]
+language: "python"
+alwaysApply: false
+priority: "high"
+authors: ["code-quality-team"]
+tags: ["python", "ruff", "mypy", "python-3.13", "lint"]
+---
+
+# Ruff и практические рекомендации (Python 3.13+)
+
+> Используйте вместе с правилом **Python: современный синтаксис 3.13+**.
+
+---
+
+## Правило 8 — Ruff автопроверка
+
+В проекте настроен **Ruff** для автоматической проверки и исправления:
+
+### Включенные правила
+
+- **UP006** - заменяет `List`/`Dict`/`Tuple` на `list`/`dict`/`tuple`
+- **UP007** - заменяет `Optional[T]`/`Union[T, None]` на `T | None`
+- **UP035** - удаляет устаревшие импорты из `typing`
+
+### Команды
+
+```bash
+# Проверить код
+ruff check .
+
+# Автоисправить проблемы
+ruff check . --fix
+
+# Форматировать код
+ruff format .
+
+# Проверить типы
+mypy .
+```
+
+### Конфигурация (pyproject.toml)
+
+```toml
+[tool.ruff]
+target-version = "py313"  # Python 3.13+
+
+[tool.ruff.lint]
+select = [
+    "UP",    # pyupgrade - современный синтаксис
+    "F",     # pyflakes - базовые проверки
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "I",     # isort - сортировка импортов
+    "B",     # bugbear - типичные баги (2025+)
+    "SIM",   # simplify - упрощение кода (опционально)
+]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+```
+
+---
+
+## Правило 9 — Практические рекомендации
+
+### Миграция существующего кода
+
+1. Запустите `ruff check . --fix` для автоматического обновления
+2. Проверьте результаты: `ruff check .`
+3. Убедитесь что типы корректны: `mypy .`
+
+### Новый код
+
+- ✅ Всегда используйте `T | None` вместо `Optional[T]`
+- ✅ Всегда используйте `list[T]` вместо `List[T]`
+- ✅ Не импортируйте `Optional`, `Union`, `List`, `Dict`, `Tuple`
+- ✅ Используйте `TypeVar` с default где уместно
+- ✅ Используйте `TypeIs` для type guards
+- ✅ Используйте `ReadOnly` для защиты критичных полей
+- ✅ Указывайте типы для всех публичных функций/методов
+
+### Примеры из реального кода
+
+```python
+# repository.py
+class Repository:
+    """Базовый репозиторий для работы с данными"""
+
+    def get_by_id(self, item_id: int) -> Item | None:
+        """Получить элемент по ID"""
+        try:
+            return self._find_item(item_id)
+        except ItemNotFound:
+            return None
+
+    def get_many(
+        self,
+        ids: list[int],
+        filters: dict[str, str] | None = None,
+    ) -> list[Item]:
+        """Получить множество элементов с фильтрами"""
+        items = self._find_items(ids)
+        if filters:
+            items = self._apply_filters(items, filters)
+        return items
+
+# service.py
+class Service:
+    """Сервис бизнес-логики"""
+
+    def __init__(self, repository: Repository | None = None):
+        self.repository = repository or Repository()
+
+    def get_statistics(
+        self,
+        item_ids: list[int],
+        date_from: str | None = None,
+        date_to: str | None = None,
+    ) -> dict[str, int]:
+        """Получить статистику"""
+        return {
+            "total": len(item_ids),
+            "processed": self._count_processed(item_ids),
+            "pending": self._count_pending(item_ids),
+        }
+```
+
+---
+
+## Автоматические подсказки агента
+
+При написании нового кода агент должен:
+
+- ❌ Отклонять `Optional[T]` → предлагать `T | None`
+- ❌ Отклонять `List[T]` → предлагать `list[T]`
+- ❌ Отклонять `Dict[K, V]` → предлагать `dict[K, V]`
+- ❌ Отклонять `Tuple[T1, T2]` → предлагать `tuple[T1, T2]`
+- ✅ Автоматически использовать современный синтаксис в примерах
+- ✅ Использовать `TypeVar` с default где уместно (Python 3.13)
+- ✅ Использовать `TypeIs` для type guards (Python 3.13)
+- ✅ Использовать `ReadOnly` для защиты критичных полей (Python 3.13)
+- ✅ Предлагать `ruff check . --fix` при обнаружении устаревшего кода
+
+---
+
+## Ресурсы
+
+- [PEP 604 - Union types](https://peps.python.org/pep-0604/)
+- [PEP 585 - Type Hinting Generics](https://peps.python.org/pep-0585/)
+- [PEP 696 - TypeVar defaults](https://peps.python.org/pep-0696/)
+- [PEP 742 - TypeIs](https://peps.python.org/pep-0742/)
+- [PEP 705 - ReadOnly TypedDict](https://peps.python.org/pep-0705/)
+- [Ruff UP rules](https://docs.astral.sh/ruff/rules/#pyupgrade-up)
+- [Python 3.13 What's New](https://docs.python.org/3/whatsnew/3.13.html)

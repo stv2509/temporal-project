@@ -1,0 +1,453 @@
+---
+title: "Python: шпаргалка по современной типизации 3.13+"
+description: "Краткий справочник по использованию современного синтаксиса типизации Python 3.13+: PEP 604 (Union types с |), PEP 585 (Generic types), PEP 696 (TypeVar defaults), PEP 742 (TypeIs), PEP 705 (ReadOnly), примеры и лучшие практики."
+globs: ["**/*.py"]
+language: "python"
+alwaysApply: true
+priority: "high"
+authors: ["style-team"]
+tags:
+  [
+    "python",
+    "typing",
+    "pep604",
+    "pep585",
+    "pep696",
+    "pep742",
+    "pep705",
+    "python-3.13",
+    "cheatsheet",
+  ]
+---
+
+# 🎯 Шпаргалка: Современная типизация Python 3.13+
+
+> **Требования:** Python 3.13+
+
+## ⚡ Быстрые правила
+
+| ❌ Старый способ  | ✅ Новый способ (Python 3.13) |
+| ----------------- | ----------------------------- |
+| `Optional[str]`   | `str \| None`                 |
+| `Union[int, str]` | `int \| str`                  |
+| `List[int]`       | `list[int]`                   |
+| `Dict[str, int]`  | `dict[str, int]`              |
+| `Tuple[str, int]` | `tuple[str, int]`             |
+| `Set[str]`        | `set[str]`                    |
+
+---
+
+## 📋 Что импортировать из typing
+
+### ❌ НЕ импортируем (встроено в Python)
+
+```python
+# Больше не нужны:
+from typing import Optional, Union, List, Dict, Tuple, Set
+```
+
+### ✅ Импортируем (для сложных случаев)
+
+```python
+from typing import (
+    TYPE_CHECKING,  # Для избежания circular imports
+    TypeAlias,      # Явные алиасы типов (best practice 2025+)
+    Protocol,       # Для интерфейсов
+    TypedDict,      # Для типизированных dict
+    TypeVar,        # Для generic типов
+    Literal,        # Для литералов
+    Callable,       # Для функций
+    Any,            # Явное «любой тип» (для аргументов предпочтите object)
+    TypeIs,         # Точное сужение типов (Python 3.13)
+    ReadOnly,       # Поля только для чтения в TypedDict (Python 3.13)
+)
+```
+
+---
+
+## 🔥 Примеры из реального кода
+
+### Функции с опциональными параметрами
+
+```python
+# ❌ Старый способ
+from typing import Optional
+def get_item(item_id: int) -> Optional[Item]:
+    pass
+
+# ✅ Новый способ
+def get_item(item_id: int) -> Item | None:
+    pass
+```
+
+### Коллекции
+
+```python
+# ❌ Старый способ
+from typing import List, Dict
+def process(items: List[str]) -> Dict[int, str]:
+    pass
+
+# ✅ Новый способ
+def process(items: list[str]) -> dict[int, str]:
+    pass
+```
+
+### Множественные типы
+
+```python
+# ❌ Старый способ
+from typing import Union
+def handle(value: Union[int, str, None]) -> bool:
+    pass
+
+# ✅ Новый способ
+def handle(value: int | str | None) -> bool:
+    pass
+```
+
+### Repository pattern
+
+```python
+# ✅ Правильно
+class Repository:
+    """Базовый репозиторий"""
+
+    def get_by_id(self, item_id: int) -> Item | None:
+        """Получить элемент по ID"""
+        return self._find_item(item_id)
+
+    def list_all(self, limit: int = 100) -> list[Item]:
+        """Получить список элементов"""
+        return self._find_items(limit=limit)
+
+    def get_mapping(self) -> dict[int, Item]:
+        """Получить словарь ID -> Item"""
+        return {item.id: item for item in self.list_all()}
+```
+
+### Service pattern
+
+```python
+# ✅ Правильно
+class Service:
+    """Сервис бизнес-логики"""
+
+    def __init__(self, repo: Repository | None = None):
+        self.repo = repo or Repository()
+
+    def get_statistics(
+        self,
+        item_ids: list[int],
+        date_from: str | None = None,
+        date_to: str | None = None,
+    ) -> dict[str, int]:
+        """Получить статистику"""
+        return {
+            "total": len(item_ids),
+            "processed": self._count_processed(item_ids),
+        }
+```
+
+---
+
+## 🛠️ Автоматическая миграция с Ruff
+
+```bash
+# Проверить код
+ruff check .
+
+# Автоисправить устаревший синтаксис
+ruff check . --fix
+
+# Форматировать код
+ruff format .
+
+# Проверить типы
+mypy .
+```
+
+---
+
+## 📊 Преимущества нового синтаксиса
+
+- ✅ **Короче** - меньше импортов и кода
+- ✅ **Быстрее** - нативные операторы Python
+- ✅ **Понятнее** - `str | None` очевиднее чем `Optional[str]`
+- ✅ **Современно** - стандарт для Python 3.13+
+- ✅ **Автопроверка** - Ruff автоматически исправляет
+
+---
+
+## ⚠️ Частые ошибки
+
+### 1. Забыли убрать импорт
+
+```python
+# ❌ Плохо - импорт не используется
+from typing import Optional
+def func() -> str | None:
+    pass
+
+# ✅ Хорошо - нет импорта
+def func() -> str | None:
+    pass
+```
+
+### 2. Смешали старый и новый синтаксис
+
+```python
+# ❌ Плохо - несогласованность
+from typing import List
+def func(items: List[str]) -> dict[str, int]:
+    pass
+
+# ✅ Хорошо - единый стиль
+def func(items: list[str]) -> dict[str, int]:
+    pass
+```
+
+### 3. Неправильные generic типы
+
+```python
+# ❌ Плохо - нет типа элементов
+def get_items() -> list:
+    pass
+
+# ✅ Хорошо - указан тип элементов
+def get_items() -> list[Item]:
+    pass
+```
+
+---
+
+## 🎓 Дополнительно
+
+### TYPE_CHECKING для circular imports
+
+```python
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from myapp.models import Item
+
+class Service:
+    def get_item(self, id: int) -> 'Item | None':
+        """Используем строковую аннотацию для forward reference"""
+        pass
+```
+
+### Protocol для интерфейсов
+
+```python
+from typing import Protocol
+
+class Repository(Protocol):
+    """Интерфейс репозитория"""
+    def get_by_id(self, id: int) -> Item | None: ...
+    def save(self, item: Item) -> None: ...
+    def delete(self, id: int) -> bool: ...
+```
+
+---
+
+## 🆕 Новые возможности Python 3.13
+
+### 1. TypeVar с default значениями (PEP 696)
+
+```python
+from typing import TypeVar
+
+# ✅ Python 3.13: TypeVar с default
+T = TypeVar('T', default=str)
+
+def get_value(key: str, default: T = "not_found") -> T:
+    """Получить значение с fallback типом"""
+    return default
+
+# Примеры использования
+result1 = get_value("key")              # type: str
+result2 = get_value("key", 42)          # type: int
+result3 = get_value("key", [1, 2, 3])   # type: list[int]
+```
+
+### 2. TypeIs для точного сужения типов (PEP 742)
+
+```python
+from typing import TypeIs
+
+# ✅ Python 3.13: более точное сужение чем TypeGuard
+def is_str_list(val: list[object]) -> TypeIs[list[str]]:
+    """Проверка что все элементы списка - строки"""
+    return all(isinstance(x, str) for x in val)
+
+def is_int_list(val: list[object]) -> TypeIs[list[int]]:
+    """Проверка что все элементы списка - числа"""
+    return all(isinstance(x, int) for x in val)
+
+# Использование в коде
+items: list[object] = ["a", "b", "c"]
+
+if is_str_list(items):
+    # items теперь точно list[str], не list[object]
+    result = ", ".join(items)  # ✅ Type checker OK!
+    upper = [s.upper() for s in items]  # ✅ OK!
+
+numbers: list[object] = [1, 2, 3]
+if is_int_list(numbers):
+    # numbers теперь точно list[int]
+    total = sum(numbers)  # ✅ OK!
+```
+
+### 3. ReadOnly для TypedDict (PEP 705)
+
+```python
+from typing import TypedDict, ReadOnly
+
+# ✅ Python 3.13: поля только для чтения
+class AppConfig(TypedDict):
+    app_name: ReadOnly[str]        # Нельзя изменять
+    version: ReadOnly[str]         # Нельзя изменять
+    environment: ReadOnly[str]     # Нельзя изменять
+    debug: bool                    # Можно изменять
+    max_connections: int           # Можно изменять
+
+# Создание конфигурации
+config: AppConfig = {
+    "app_name": "My Application",
+    "version": "1.0.0",
+    "environment": "production",
+    "debug": False,
+    "max_connections": 100,
+}
+
+# ✅ OK - изменение обычных полей
+config["debug"] = True
+config["max_connections"] = 200
+
+# ❌ Type checker error! - попытка изменить ReadOnly поля
+config["app_name"] = "Other"  # Error: "app_name" is read-only
+config["version"] = "2.0.0"   # Error: "version" is read-only
+```
+
+### 4. Комбинированный пример
+
+```python
+from typing import TypeVar, TypeIs, TypedDict, ReadOnly
+
+# Конфигурация с ReadOnly полями
+class DatabaseConfig(TypedDict):
+    host: ReadOnly[str]
+    port: ReadOnly[int]
+    database: ReadOnly[str]
+    username: str
+    password: str
+    pool_size: int
+
+config: DatabaseConfig = {
+    "host": "localhost",
+    "port": 5432,
+    "database": "myapp",
+    "username": "admin",
+    "password": "secret",
+    "pool_size": 20,
+}
+
+# ✅ Можно менять credentials и настройки
+config["username"] = "new_admin"
+config["pool_size"] = 50
+
+# ❌ Нельзя менять connection параметры
+# config["host"] = "other_host"  # Type error!
+
+# Generic с default для repository
+T = TypeVar('T', default=dict[str, str])
+
+class CacheRepository:
+    def get(self, key: str, default: T = {}) -> T:
+        """Получить данные с fallback"""
+        return self._cache.get(key, default)
+
+# TypeIs для валидации
+def is_valid_config(data: dict[str, object]) -> TypeIs[DatabaseConfig]:
+    """Проверка что dict соответствует DatabaseConfig"""
+    required = {"host", "port", "database", "username", "password", "pool_size"}
+    return all(key in data for key in required)
+
+# Использование
+raw_config: dict[str, object] = load_config()
+if is_valid_config(raw_config):
+    # raw_config теперь DatabaseConfig, можем безопасно использовать
+    connect_to_db(raw_config)
+```
+
+---
+
+## 📈 Сравнение возможностей по версиям
+
+| Возможность                          | Python 3.10 | Python 3.13     |
+| ------------------------------------ | ----------- | --------------- |
+| `str \| None` вместо `Optional[str]` | ✅          | ✅              |
+| `list[int]` вместо `List[int]`       | ✅          | ✅              |
+| `TypeVar` с default                  | ❌          | ✅              |
+| `TypeIs` для сужения типов           | ❌          | ✅              |
+| `ReadOnly` для TypedDict             | ❌          | ✅              |
+| Улучшенные сообщения об ошибках      | Базовые     | Цветные + лучше |
+
+---
+
+## 🎯 Чек-лист для проверки кода
+
+### Базовые типы
+
+- [ ] Используется `X | None` вместо `Optional[X]`
+- [ ] Используется `X | Y` вместо `Union[X, Y]`
+- [ ] Используется `list[T]` вместо `List[T]`
+- [ ] Используется `dict[K, V]` вместо `Dict[K, V]`
+- [ ] Используется `tuple[T, ...]` вместо `Tuple[T, ...]`
+- [ ] Используется `set[T]` вместо `Set[T]`
+
+### Python 3.13 фичи
+
+- [ ] `TypeVar` с default где уместно
+- [ ] `TypeIs` для type guards вместо `bool`
+- [ ] `ReadOnly` для защиты критичных полей в TypedDict
+- [ ] Pattern matching вместо длинных `if-elif`
+
+### Качество
+
+- [ ] Все публичные функции имеют type hints
+- [ ] Нет неиспользуемых импортов из `typing`
+- [ ] Код проходит `ruff check .`
+- [ ] Код проходит `mypy .`
+
+---
+
+## 📚 Ресурсы
+
+### PEPs (Python Enhancement Proposals)
+
+- [PEP 604 - Union types (`|`)](https://peps.python.org/pep-0604/)
+- [PEP 585 - Generic types](https://peps.python.org/pep-0585/)
+- [PEP 696 - TypeVar defaults](https://peps.python.org/pep-0696/)
+- [PEP 742 - TypeIs](https://peps.python.org/pep-0742/)
+- [PEP 705 - ReadOnly TypedDict](https://peps.python.org/pep-0705/)
+
+### Актуальность (2025–2026)
+
+- **object вместо Any:** если функция принимает «любой объект» (например для `str()` или `isinstance`), аннотируйте `object`, не `Any` — лучше для type checker.
+- **Аргументы:** предпочитайте абстрактные типы (`Sequence`, `Iterable`, `Mapping`) для входов; для возврата — конкретные `list`, `dict`.
+- **TypeAlias:** для явных алиасов типов используйте `TypeAlias` из `typing` или `type` (Python 3.12+).
+- **Python 3.14+:** ленивые аннотации по умолчанию; `from __future__ import annotations` больше не нужен.
+
+### Документация
+
+- [Python 3.13 What's New](https://docs.python.org/3/whatsnew/3.13.html)
+- [Typing Best Practices](https://typing.python.org/en/latest/reference/best_practices.html)
+- [Ruff UP rules](https://docs.astral.sh/ruff/rules/#pyupgrade-up)
+- [mypy Documentation](https://mypy.readthedocs.io/)
+
+---
+
+**Всегда используйте современный синтаксис в новом коде!**  
+**Ruff автоматически обновит старый код: `ruff check . --fix`**

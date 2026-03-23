@@ -45,10 +45,7 @@ class RequestViewSet(viewsets.ModelViewSet):
         """Сохранить status и при наличии awx — merge в normalized."""
         instance = serializer.instance
         instance.status = serializer.validated_data["status"]
-        if (
-            "awx" in serializer.validated_data
-            and serializer.validated_data["awx"] is not None
-        ):
+        if "awx" in serializer.validated_data and serializer.validated_data["awx"] is not None:
             new_normalized = dict(instance.normalized)
             new_normalized["awx"] = serializer.validated_data["awx"]
             instance.normalized = new_normalized
@@ -73,9 +70,7 @@ class RequestViewSet(viewsets.ModelViewSet):
             requester=requester,
         )
 
-        workflow_name = getattr(
-            settings, "TEMPORAL_WORKFLOW_K8S_ACCESS", "K8sAccessCheckWorkflow"
-        )
+        workflow_name = getattr(settings, "TEMPORAL_WORKFLOW_K8S_ACCESS", "K8sAccessCheckWorkflow")
         if req.status == RequestStatus.VALIDATED:
             try:
                 adapter = TemporalAdapter()
@@ -84,9 +79,7 @@ class RequestViewSet(viewsets.ModelViewSet):
                     workflow_name=workflow_name,
                     args=[ticket_id],
                 )
-                service.update_status(
-                    ticket_id, RequestStatus.IN_PROGRESS, workflow_id=ticket_id
-                )
+                service.update_status(ticket_id, RequestStatus.IN_PROGRESS, workflow_id=ticket_id)
                 req.refresh_from_db()
             except Exception as e:
                 logger.exception("Temporal start_workflow failed: %s", e)
@@ -118,9 +111,7 @@ class RequestViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_200_OK,
             )
 
-        workflow_name = getattr(
-            settings, "TEMPORAL_WORKFLOW_K8S_ACCESS", "K8sAccessCheckWorkflow"
-        )
+        workflow_name = getattr(settings, "TEMPORAL_WORKFLOW_K8S_ACCESS", "K8sAccessCheckWorkflow")
         try:
             adapter = TemporalAdapter()
             adapter.start_workflow(
