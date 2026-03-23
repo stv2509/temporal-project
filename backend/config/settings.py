@@ -155,7 +155,21 @@ CORS_ALLOW_ALL_ORIGINS = DEBUG
 # Temporal (хост/namespace/task_queue из env)
 TEMPORAL_HOST = os.environ.get("TEMPORAL_HOST", "localhost:7233")
 TEMPORAL_NAMESPACE = os.environ.get("TEMPORAL_NAMESPACE", "default")
-TEMPORAL_TASK_QUEUE = os.environ.get("TEMPORAL_TASK_QUEUE", "awx-task-queue")
+AWX_ENV = os.environ.get("AWX_ENV", "test").strip().lower()
 TEMPORAL_WORKFLOW_K8S_ACCESS = os.environ.get(
     "TEMPORAL_WORKFLOW_K8S_ACCESS", "K8sAccessCheckWorkflow"
 )
+TEMPORAL_TASK_QUEUE_K8S_ACCESS = os.environ.get("TEMPORAL_TASK_QUEUE_K8S_ACCESS", "awx-task-queue")
+
+# Роутинг request_type -> workflow + task_queue.
+# Используется при старте workflow из backend.
+TEMPORAL_WORKFLOW_ROUTES = {
+    "k8s_access": {
+        "workflow_name": TEMPORAL_WORKFLOW_K8S_ACCESS,
+        "task_queue": TEMPORAL_TASK_QUEUE_K8S_ACCESS,
+    },
+    # "vm_create": {
+    #     "workflow_name": os.environ.get("TEMPORAL_WORKFLOW_VM_CREATE", "VmCreateWorkflow"),
+    #     "task_queue": os.environ.get("TEMPORAL_TASK_QUEUE_VM_CREATE", "vm-create-task-queue"),
+    # },
+}

@@ -43,6 +43,7 @@
             <thead>
                 <tr>
                     <th>Номер заявки</th>
+                    <th>Тип</th>
                     <th>Источник</th>
                     <th>Статус</th>
                     <th>Workflow ID</th>
@@ -54,6 +55,7 @@
                 {% for r in requests %}
                 <tr>
                     <td><code>{{ r.ticket_id }}</code></td>
+                    <td><code>{{ r.type }}</code></td>
                     <td>{{ r.source }}</td>
                     <td>
                         <span class="badge
@@ -68,19 +70,21 @@
                     </td>
                     <td>{% if r.workflow_id %}<code>{{ r.workflow_id }}</code>{% else %}—{% endif %}</td>
                     <td>{{ r.created_at|date:"d.m.Y H:i" }}</td>
-                    <td>
+                    <td class="text-nowrap">
                         {% if r.status == 'needs_manual' or r.status == 'new' %}
                         <a href="{% url 'infra_requests:k8s_access_edit' ticket_id=r.ticket_id %}" class="btn btn-sm btn-outline-primary me-1" title="Дополнить или исправить заявку">Исправить</a>
+                        {% else %}
+                        <a href="{% url 'infra_requests:k8s_access_view' ticket_id=r.ticket_id %}" class="btn btn-sm btn-outline-secondary me-1" title="Просмотр данных заявки">Просмотр</a>
                         {% endif %}
                         <form method="post" action="{% url 'infra_requests:k8s_access_run' ticket_id=r.ticket_id %}" class="d-inline">
                             {% csrf_token %}
-                            <button type="submit" class="btn btn-sm btn-outline-success" title="Запустить проверку доступа (повторно)">Run</button>
+                            <button type="submit" class="btn btn-sm btn-outline-success" title="Запустить проверку доступа (повторно)">Запуск</button>
                         </form>
                     </td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="6" class="text-muted">Заявок пока нет.</td>
+                    <td colspan="7" class="text-muted">Заявок пока нет.</td>
                 </tr>
                 {% endfor %}
             </tbody>

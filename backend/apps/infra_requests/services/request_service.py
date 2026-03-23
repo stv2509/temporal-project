@@ -1,6 +1,6 @@
 """Сервис заявок: создание, валидация, захват для запуска workflow."""
 
-from apps.infra_requests.constants import CLUSTER_AWX_TEMPLATE
+from apps.infra_requests.constants import get_awx_template_id, get_cluster_awx_template_map
 from apps.infra_requests.models import Request, RequestStatus, RequestType
 from apps.infra_requests.repositories import RequestRepository
 
@@ -49,7 +49,8 @@ class RequestService:
                 dst_port = normalized.get("dst_port")
                 if not cluster or not dst_host or dst_port is None:
                     return False
-                if cluster not in CLUSTER_AWX_TEMPLATE:
+                template_map = get_cluster_awx_template_map(RequestType.K8S_ACCESS)
+                if cluster not in template_map:
                     return False
                 try:
                     port = int(dst_port)
@@ -74,6 +75,7 @@ class RequestService:
     def prepare_create_from_form(
         self,
         ticket_id: str,
+        request_type: str,
         cluster: str,
         dst_host: str,
         dst_port_str: str,
@@ -88,8 +90,13 @@ class RequestService:
             errors.append("Номер заявки обязателен.")
         if not cluster:
             errors.append("Выберите кластер.")
-        elif cluster not in CLUSTER_AWX_TEMPLATE:
-            errors.append("Недопустимый кластер.")
+        else:
+            try:
+                template_map = get_cluster_awx_template_map(request_type)
+                if cluster not in template_map:
+                    errors.append("Недопустимый кластер.")
+            except ValueError:
+                errors.append("Для типа заявки не настроены шаблоны AWX.")
         if not dst_host:
             errors.append("dst_host обязателен.")
         try:
@@ -102,17 +109,18 @@ class RequestService:
         normalized: dict = {}
         payload: dict = {
             "ticket_id": ticket_id,
+            "request_type": request_type,
             "cluster": cluster,
             "dst_host": dst_host,
             "dst_port": dst_port,
             "comment": comment,
         }
-        if not errors and cluster in CLUSTER_AWX_TEMPLATE and dst_port is not None:
+        if not errors and dst_port is not None:
             normalized = {
                 "cluster": cluster,
                 "dst_host": dst_host,
                 "dst_port": dst_port,
-                "awx_template_id": CLUSTER_AWX_TEMPLATE[cluster],
+                "awx_template_id": get_awx_template_id(request_type, cluster),
             }
             if comment:
                 normalized["comment"] = comment

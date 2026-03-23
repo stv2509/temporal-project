@@ -18,6 +18,7 @@ class RequestType(models.TextChoices):
     """Тип заявки."""
 
     K8S_ACCESS = "k8s_access", "K8s access check"
+    # VM_CREATE = "vm_create", "VM create"
 
 
 class Request(models.Model):

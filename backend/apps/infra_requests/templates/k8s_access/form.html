@@ -1,11 +1,15 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}{% if is_edit %}Редактирование заявки{% else %}Новая заявка{% endif %} — K8s доступ{% endblock %}
+{% block title %}
+{% if is_readonly %}Просмотр заявки{% elif is_edit %}Редактирование заявки{% else %}Новая заявка{% endif %} — K8s доступ
+{% endblock %}
 
 {% block content %}
 <div class="container py-4">
-    <h1 class="mb-4">{% if is_edit %}Редактирование заявки{% elif is_pipeline %}Run pipeline (ручной запуск){% else %}Заявка на проверку сетевого доступа (K8s){% endif %}</h1>
+    <h1 class="mb-4">
+        {% if is_readonly %}Просмотр заявки{% elif is_edit %}Редактирование заявки{% elif is_pipeline %}Ручной запуск pipeline{% else %}Заявка на проверку сетевого доступа (K8s){% endif %}
+    </h1>
 
     {% if errors %}
     <div class="alert alert-danger" role="alert">
@@ -17,12 +21,27 @@
     </div>
     {% endif %}
 
-    <form method="post" action="{% if is_edit %}{% url 'infra_requests:k8s_access_edit' ticket_id=edit_ticket_id %}{% else %}{% url 'infra_requests:k8s_access_create' %}{% endif %}" class="needs-validation" novalidate>
-        {% csrf_token %}
+    <form method="post" action="{% if is_readonly %}#{% elif is_edit %}{% url 'infra_requests:k8s_access_edit' ticket_id=edit_ticket_id %}{% else %}{% url 'infra_requests:k8s_access_create' %}{% endif %}" class="needs-validation" novalidate {% if is_readonly %}aria-readonly="true" onsubmit="return false;"{% endif %}>
+        {% if not is_readonly %}{% csrf_token %}{% endif %}
         <div class="row g-3">
             <div class="col-12">
+                <label for="request_type" class="form-label">Тип заявки *</label>
+                {% if is_edit or is_readonly %}
+                <input type="text" class="form-control bg-light" id="request_type_label" value="{{ form_data.request_type|default:selected_request_type|default:'k8s_access' }}" readonly>
+                {% if not is_readonly %}
+                <input type="hidden" id="request_type" name="request_type" value="{{ form_data.request_type|default:selected_request_type|default:'k8s_access' }}">
+                {% endif %}
+                {% else %}
+                <select class="form-select" id="request_type" name="request_type" required>
+                    {% for rt in request_type_choices %}
+                    <option value="{{ rt }}" {% if form_data.request_type == rt or selected_request_type == rt %}selected{% endif %}>{{ rt }}</option>
+                    {% endfor %}
+                </select>
+                {% endif %}
+            </div>
+            <div class="col-12">
                 <label for="ticket_id" class="form-label">Номер заявки *</label>
-                {% if is_edit %}
+                {% if is_edit or is_readonly %}
                 <input type="text" class="form-control bg-light" id="ticket_id" value="{{ form_data.ticket_id|default:'' }}" readonly>
                 {% else %}
                 <input type="text" class="form-control" id="ticket_id" name="ticket_id" value="{{ form_data.ticket_id|default:'' }}" required maxlength="255" placeholder="Напр. NET-12345">
@@ -30,7 +49,7 @@
             </div>
             <div class="col-12">
                 <label for="cluster" class="form-label">Кластер *</label>
-                <select class="form-select" id="cluster" name="cluster" required>
+                <select class="form-select{% if is_readonly %} bg-light{% endif %}" id="cluster" name="cluster" required {% if is_readonly %}disabled{% endif %}>
                     <option value="">— выберите —</option>
                     {% for code in cluster_choices %}
                     <option value="{{ code }}" {% if form_data.cluster == code %}selected{% endif %}>{{ code }}</option>
@@ -39,18 +58,20 @@
             </div>
             <div class="col-md-6">
                 <label for="dst_host" class="form-label">dst_host *</label>
-                <input type="text" class="form-control" id="dst_host" name="dst_host" value="{{ form_data.dst_host|default:'' }}" required maxlength="255" placeholder="IP или hostname">
+                <input type="text" class="form-control{% if is_readonly %} bg-light{% endif %}" id="dst_host" name="dst_host" value="{{ form_data.dst_host|default:'' }}" required maxlength="255" placeholder="IP или hostname" {% if is_readonly %}readonly{% endif %}>
             </div>
             <div class="col-md-6">
                 <label for="dst_port" class="form-label">dst_port (1–65535) *</label>
-                <input type="number" class="form-control" id="dst_port" name="dst_port" value="{{ form_data.dst_port|default:'' }}" min="1" max="65535" required placeholder="443">
+                <input type="number" class="form-control{% if is_readonly %} bg-light{% endif %}" id="dst_port" name="dst_port" value="{{ form_data.dst_port|default:'' }}" min="1" max="65535" required placeholder="443" {% if is_readonly %}readonly{% endif %}>
             </div>
             <div class="col-12">
                 <label for="comment" class="form-label">Комментарий</label>
-                <textarea class="form-control" id="comment" name="comment" rows="2" maxlength="2048">{{ form_data.comment|default:'' }}</textarea>
+                <textarea class="form-control{% if is_readonly %} bg-light{% endif %}" id="comment" name="comment" rows="2" maxlength="2048" {% if is_readonly %}readonly{% endif %}>{{ form_data.comment|default:'' }}</textarea>
             </div>
             <div class="col-12">
+                {% if not is_readonly %}
                 <button type="submit" class="btn btn-primary">{% if is_edit %}Сохранить{% else %}Отправить{% endif %}</button>
+                {% endif %}
                 <a href="{% url 'infra_requests:k8s_access_list' %}" class="btn btn-outline-secondary">К списку</a>
             </div>
         </div>

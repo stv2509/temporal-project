@@ -21,6 +21,16 @@ from apps.infra_requests.services import RequestService
 logger = logging.getLogger(__name__)
 
 
+def _get_workflow_route(request_type: str) -> tuple[str, str]:
+    routes = getattr(settings, "TEMPORAL_WORKFLOW_ROUTES", {})
+    route = routes.get(request_type, {})
+    workflow_name = str(route.get("workflow_name") or settings.TEMPORAL_WORKFLOW_K8S_ACCESS)
+    task_queue = str(route.get("task_queue") or "").strip()
+    if not task_queue:
+        raise ValueError(f"No task_queue configured for request_type={request_type}")
+    return (workflow_name, task_queue)
+
+
 class RequestViewSet(viewsets.ModelViewSet):
     """API заявок: list, retrieve, create; action run для запуска workflow."""
 
@@ -57,6 +67,7 @@ class RequestViewSet(viewsets.ModelViewSet):
         data = serializer.validated_data
         payload = dict(request.data)
         normalized = data["normalized"]
+        request_type = str(data.get("request_type") or RequestType.K8S_ACCESS)
         ticket_id = data["ticket_id"]
         requester = getattr(request.user, "username", "") or ""
 
@@ -64,16 +75,16 @@ class RequestViewSet(viewsets.ModelViewSet):
         req = service.create_or_update(
             ticket_id=ticket_id,
             source="manual",
-            request_type=RequestType.K8S_ACCESS,
+            request_type=request_type,
             payload=payload,
             normalized=normalized,
             requester=requester,
         )
 
-        workflow_name = getattr(settings, "TEMPORAL_WORKFLOW_K8S_ACCESS", "K8sAccessCheckWorkflow")
+        workflow_name, task_queue = _get_workflow_route(req.type)
         if req.status == RequestStatus.VALIDATED:
             try:
-                adapter = TemporalAdapter()
+                adapter = TemporalAdapter(task_queue=task_queue)
                 adapter.start_workflow(
                     workflow_id=ticket_id,
                     workflow_name=workflow_name,
@@ -111,9 +122,9 @@ class RequestViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_200_OK,
             )
 
-        workflow_name = getattr(settings, "TEMPORAL_WORKFLOW_K8S_ACCESS", "K8sAccessCheckWorkflow")
+        workflow_name, task_queue = _get_workflow_route(claimed.type)
         try:
-            adapter = TemporalAdapter()
+            adapter = TemporalAdapter(task_queue=task_queue)
             adapter.start_workflow(
                 workflow_id=ticket_id,
                 workflow_name=workflow_name,

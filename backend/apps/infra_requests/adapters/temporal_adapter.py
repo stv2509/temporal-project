@@ -20,7 +20,7 @@ class TemporalAdapter:
     ) -> None:
         self._host = host or getattr(settings, "TEMPORAL_HOST", "localhost:7233")
         self._namespace = namespace or getattr(settings, "TEMPORAL_NAMESPACE", "default")
-        self._task_queue = task_queue or getattr(settings, "TEMPORAL_TASK_QUEUE", "awx-task-queue")
+        self._task_queue = task_queue or ""
 
     async def start_workflow_async(
         self,
@@ -34,7 +34,9 @@ class TemporalAdapter:
 
         host = str(self._host or "localhost:7233")
         namespace = str(self._namespace or "default")
-        task_queue = str(self._task_queue or "awx-task-queue")
+        task_queue = str(self._task_queue).strip()
+        if not task_queue:
+            raise ValueError("Temporal task_queue is required")
         client = await Client.connect(host, namespace=namespace)
         try:
             await client.start_workflow(  # type: ignore[arg-type]
