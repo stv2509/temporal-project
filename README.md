@@ -1,118 +1,138 @@
-# Temporal Project — пример Workflow + Activities
+# Temporal Project — Django + Temporal + AWX
 
-Минимальный пример приложения на [Temporal](https://temporal.io/): Workflow вызывает Activity и возвращает результат.
+Проект для заявок на инфраструктурные операции:
+- backend на Django/DRF;
+- workflow orchestration в Temporal;
+- запуск job в AWX из worker activities.
+
+Поддерживается routing по `request_type`, окружения `test/prod/dev` и разделение AWX через `AWX_ENV`.
 
 ## Требования
 
-- Python 3.8+
-- Запущенный [Temporal Server](https://docs.temporal.io/self-hosted-guide) (по умолчанию слушает `localhost:7233`)
+- Python 3.13+
+- Temporal Server (`localhost:7233` по умолчанию)
+- (опционально) AWX для выполнения job templates
 
 ## Установка
 
-### 1. Виртуальное окружение (рекомендуется)
-
 ```bash
 python -m venv .venv
-# Windows
-.venv\Scripts\activate
-# Linux/macOS
-source .venv/bin/activate
-```
-
-### 2. Зависимости
-
-```bash
+# Windows (git-bash)
+source .venv/Scripts/activate
 pip install -r requirements.txt
+pip install -r worker/requirements.txt
 ```
 
-## Запуск Temporal Server (локально)
+## Конфигурация
 
-### Вариант 1: Docker Compose
+Скопируйте `.env.example` в `.env` и заполните значения.
 
-Если сервер ещё не запущен, можно поднять его через [Docker](https://docs.temporal.io/self-hosted-guide/docker):
+Ключевые переменные:
 
-```bash
-git clone https://github.com/temporalio/docker-compose.git temporal-docker
-cd temporal-docker
-docker-compose up -d
-```
+- `TEMPORAL_HOST` — адрес Temporal.
+- `TEMPORAL_NAMESPACE` — namespace Temporal (`test`, `prod`, `dev`).
+- `AWX_ENV` — контур AWX (`test`/`prod`), где `dev` обычно маппится на `test`.
+- `TEMPORAL_TASK_QUEUE_K8S_ACCESS` — очередь для `k8s_access`.
+- `AWX_URL_TEST`/`AWX_URL_PROD` и соответствующие креды.
 
-После старта сервер доступен на `localhost:7233`. Для деталей см. [официальную документацию](https://docs.temporal.io/self-hosted-guide).
+Принятая матрица окружений:
+- `test`: `TEMPORAL_NAMESPACE=test`, `AWX_ENV=test`
+- `prod`: `TEMPORAL_NAMESPACE=prod`, `AWX_ENV=prod`
+- `dev`: `TEMPORAL_NAMESPACE=dev`, `AWX_ENV=test`
 
-### Вариант 2: Temporal CLI (dev-сервер)
+## Запуск
 
-1. Установи [Temporal CLI](https://docs.temporal.io/cli#install).
-2. В терминале выполни:
+Нужны 3 процесса: backend, worker и Temporal Server.
+
+### 1) Temporal Server
+
+Через CLI:
 
 ```bash
 temporal server start-dev --dynamic-config-value "frontend.WorkerHeartbeatsEnabled=true"
 ```
 
-**Примечание:** Флаг `--dynamic-config-value` включает поддержку runtime heartbeating на сервере, что убирает предупреждение `Worker heartbeating configured for runtime, but server version does not support it` при запуске worker.
-
-Сервер и Web UI поднимутся локально (gRPC: `localhost:7233`, UI — порт будет указан в выводе команды). Остановка — `Ctrl+C`.
-
-## Как запускать приложение
-
-Нужны **два процесса**: worker (обрабатывает задачи) и starter (запускает workflow).
-
-### 1. Запуск Worker (первым)
-
-В первом терминале:
+### 2) Django backend
 
 ```bash
-python worker.py
+cd backend
+python manage.py migrate
+python manage.py runserver
 ```
 
-Должно появиться: `Worker started.` — worker слушает очередь `my-task-queue`.
+UI формы: `http://localhost:8000/k8s-access/`  
+API: `http://localhost:8000/api/requests/`  
+Swagger: `http://localhost:8000/api/docs/`
 
-### 2. Запуск Starter (во втором терминале)
+### 3) Worker
 
-Во втором терминале (в той же директории, с активированным venv):
+Из **корня репозитория** (чтобы подтянулись импорты `worker.*` и `.env` из корня):
 
 ```bash
-python starter.py
+python worker/worker.py
 ```
 
-Starter отправит один workflow; в консоли появится что-то вроде:
+**Что делает процесс.** `worker/worker.py` — тонкий entrypoint; реальный запуск в `worker/runner.py`: загрузка `.env`, подключение к Temporal, выбор домена и регистрация workflows/activities из `worker/registry.py`.
 
-```
-Workflow result: Hello Василий
-```
+**Домен воркера — через `WORKER_DOMAIN`.** Одна и та же команда, разные процессы:
 
-(имя задаётся в `starter.py` — второй аргумент в `execute_workflow`.)
+| Переменная | Назначение | По умолчанию |
+|------------|------------|--------------|
+| `WORKER_DOMAIN` | Ключ из `worker/registry.py` (`k8s_access`, позже `vm_create`) | `k8s_access` |
+| `TEMPORAL_TASK_QUEUE_K8S_ACCESS` | Очередь, если домен `k8s_access` | `awx-task-queue` |
+| `TEMPORAL_HOST`, `TEMPORAL_NAMESPACE` | Куда подключаться | см. `.env.example` |
 
-## Структура проекта
+Очередь воркера **должна совпадать** с `task_queue` в `TEMPORAL_WORKFLOW_ROUTES` для соответствующего `request_type`, иначе задачи зависнут без исполнителя.
 
-| Файл           | Назначение |
-|----------------|------------|
-| `workflows.py` | Описание Workflow (оркестрация) |
-| `activities.py`| Activity — единица работы (например, `greet`) |
-| `worker.py`    | Процесс, который выполняет workflows и activities |
-| `starter.py`   | Клиент, который запускает workflow и ждёт результат |
+**Несколько воркеров (разные домены / очереди).** Запускайте **отдельные процессы** (или контейнеры) с разным `WORKER_DOMAIN` и своими `TEMPORAL_TASK_QUEUE_*`:
 
-Подробнее — в [ARCHITECTURE.md](ARCHITECTURE.md).
-
-## Настройка подключения к Temporal
-
-По умолчанию используется `localhost:7233`. Чтобы изменить адрес или namespace, правьте в коде:
-
-- **worker.py**: `Client.connect("localhost:7233")` и параметры `Worker(...)`.
-- **starter.py**: `Client.connect("localhost:7233")` и аргументы `execute_workflow(...)`.
-
-Пример для другого хоста/порта:
-
-```python
-client = await Client.connect("temporal.example.com:7233", namespace="my-namespace")
+```bash
+# Воркер только для k8s_access
+WORKER_DOMAIN=k8s_access python worker/worker.py
 ```
 
-## Возможные проблемы
+```bash
+# Когда появится домен vm_create в registry — второй процесс
+WORKER_DOMAIN=vm_create TEMPORAL_TASK_QUEUE_VM_CREATE=vm-create-task-queue python worker/worker.py
+```
 
-- **Ошибка подключения к Temporal**  
-  Убедитесь, что Temporal Server запущен и доступен по указанному адресу (по умолчанию `localhost:7233`).
+Сейчас в реестре активен **только** `k8s_access`; блок `vm_create` — заготовка. Пока домен не зарегистрирован и не реализован под `worker/domains/vm_create/`, второй процесс с `WORKER_DOMAIN=vm_create` не нужен.
 
-- **Worker не обрабатывает задачи**  
-  Сначала всегда запускайте `worker.py`, затем `starter.py`. Имена `task_queue` в worker и starter должны совпадать (`my-task-queue`).
+**Docker (идея на будущее).** Один образ, один `CMD` (`python worker/worker.py`), **несколько сервисов** в compose/k8s с разным `environment`: у каждого свой `WORKER_DOMAIN` и своя `TEMPORAL_TASK_QUEUE_*`. Подробнее по переменным воркера — `worker/README.md`.
 
-- **Предупреждение про heartbeating**  
-  В `worker.py` уже настроено подавление этого предупреждения для несовместимых версий сервера; на работу примера оно не влияет.
+## Как работает роутинг
+
+- Backend выбирает `workflow_name` и `task_queue` из `TEMPORAL_WORKFLOW_ROUTES` в `backend/config/settings.py`.
+- Для `k8s_access` используется route `k8s_access -> K8sAccessCheckWorkflow + TEMPORAL_TASK_QUEUE_K8S_ACCESS`.
+- В `constants.py` template-id выбирается по схеме:
+  `AWX_ENV -> request_type -> cluster -> template_id`.
+- Для `vm_create` оставлены закомментированные заготовки (`# ...`) в конфиге и реестре.
+
+## Worker архитектура
+
+- `worker/runner.py` — запуск worker по домену (`WORKER_DOMAIN`).
+- `worker/registry.py` — реестр доменов (очередь, workflows, activities).
+- `worker/shared/backend_api.py` — общий backend API config/auth.
+- `worker/shared/awx_profiles.py` — выбор AWX профиля по `AWX_ENV`.
+- `worker/domains/k8s_access/*` — доменная обвязка `k8s_access`.
+
+## Проверки качества
+
+```bash
+ruff check .
+ruff format .
+python -m mypy --check-untyped-defs .
+```
+
+## Частые проблемы
+
+- **Workflow не стартует**
+  - проверьте, что worker запущен;
+  - проверьте `task_queue` в `TEMPORAL_WORKFLOW_ROUTES` и env.
+
+- **AWX launch падает**
+  - проверьте `AWX_ENV` и соответствующие `AWX_URL_*`/креды;
+  - убедитесь, что для `request_type + cluster` есть template-id в `constants.py`.
+
+- **Неправильный namespace**
+  - проверьте `TEMPORAL_NAMESPACE` для конкретного окружения (`test/prod/dev`).

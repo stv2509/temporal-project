@@ -1,18 +1,17 @@
-"""Workflow проверки сетевого доступа K8s: заявка → AWX job → обновление статуса."""
+"""Workflow домена k8s_access: заявка → AWX job → обновление статуса."""
 
 from datetime import timedelta
 
 from temporalio import workflow
 
 with workflow.unsafe.imports_passed_through():
-    from worker.activities import (
+    from worker.domains.k8s_access.activities import (
         get_awx_job_status,
         get_request_data,
         launch_awx_job,
         update_request_status,
     )
 
-# Терминальные статусы AWX job — по ним выходим из цикла опроса
 AWX_TERMINAL_STATUSES = frozenset({"successful", "failed", "error", "canceled"})
 POLL_INTERVAL_SEC = 30
 POLL_MAX_ITERATIONS = 20  # 20 * 30s = 10 min max ожидания
