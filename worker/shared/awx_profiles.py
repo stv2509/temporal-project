@@ -12,7 +12,34 @@ class AwxProfileConfig:
     url: str
     username: str
     password: str
-    verify_ssl: bool
+    # httpx verify value:
+    # - True/False
+    # - or path to a PEM CA bundle file
+    verify: bool | str
+
+
+def resolve_httpx_verify() -> bool | str:
+    """
+    Resolve httpx TLS verification setting from CA_BUNDLE_PATH.
+
+    Allowed values for CA_BUNDLE_PATH:
+    - path to PEM bundle (string)
+    - true
+    - false
+
+    When unset/empty: use system default verification (True).
+    """
+    raw = os.environ.get("CA_BUNDLE_PATH", "").strip()
+    if not raw:
+        # Use system default trust store.
+        return True
+    low = raw.lower()
+    if low == "true":
+        return True
+    if low == "false":
+        return False
+    # Treat any other non-empty value as a path to CA bundle.
+    return raw
 
 
 def get_awx_env() -> str:
@@ -36,7 +63,7 @@ def _decrypt_password(plain: str, encrypted: str, key_b64: str) -> str:
 def get_awx_profile_config() -> AwxProfileConfig:
     """Read AWX profile config for active AWX_ENV."""
     awx_env = get_awx_env()
-    verify_ssl = os.environ.get("AWX_VERIFY_SSL", "true").lower() == "true"
+    verify = resolve_httpx_verify()
 
     if awx_env == "prod":
         url = os.environ.get("AWX_URL_PROD", "").rstrip("/")
@@ -65,7 +92,7 @@ def get_awx_profile_config() -> AwxProfileConfig:
         url=url,
         username=username,
         password=password,
-        verify_ssl=verify_ssl,
+        verify=verify,
     )
 
 

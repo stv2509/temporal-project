@@ -32,6 +32,9 @@ pip install -r worker/requirements.txt
 - `TEMPORAL_HOST` — адрес Temporal.
 - `TEMPORAL_NAMESPACE` — namespace Temporal (`test`, `prod`, `dev`).
 - `AWX_ENV` — контур AWX (`test`/`prod`), где `dev` обычно маппится на `test`.
+- `CA_BUNDLE_PATH` — CA bundle для TLS verification в worker (httpx). Допустимые значения:
+  - путь к PEM-файлу с CA bundle
+  - `true` / `false`
 - `TEMPORAL_TASK_QUEUE_K8S_ACCESS` — очередь для `k8s_access`.
 - `AWX_URL_TEST`/`AWX_URL_PROD` и соответствующие креды.
 

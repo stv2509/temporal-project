@@ -34,7 +34,7 @@ async def get_request_data(ticket_id: str) -> dict:
     """GET request data from DRF API."""
     url = request_detail_url(BACKEND_API, ticket_id)
     auth = _api_auth()
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=30.0, verify=AWX_PROFILE.verify) as client:
         response = await client.get(url, auth=auth)
         response.raise_for_status()
     data = response.json()
@@ -62,7 +62,7 @@ async def launch_awx_job(
             "port_dst": port_dst,
         }
     }
-    async with httpx.AsyncClient(timeout=120.0, verify=AWX_PROFILE.verify_ssl) as client:
+    async with httpx.AsyncClient(timeout=120.0, verify=AWX_PROFILE.verify) as client:
         response = await client.post(url, json=payload, auth=auth)
         response.raise_for_status()
     result = response.json()
@@ -80,7 +80,7 @@ async def get_awx_job_status(job_id: int) -> dict:
     if not auth:
         raise ValueError("AWX_USERNAME/AWX_PASSWORD not set")
     url = f"{AWX_PROFILE.url}/api/v2/jobs/{job_id}/"
-    async with httpx.AsyncClient(timeout=30.0, verify=AWX_PROFILE.verify_ssl) as client:
+    async with httpx.AsyncClient(timeout=30.0, verify=AWX_PROFILE.verify) as client:
         response = await client.get(url, auth=auth)
         response.raise_for_status()
     data = response.json()
@@ -101,7 +101,7 @@ async def update_request_status(
     payload: dict = {"status": status}
     if awx is not None:
         payload["awx"] = awx
-    async with httpx.AsyncClient(timeout=15.0) as client:
+    async with httpx.AsyncClient(timeout=15.0, verify=AWX_PROFILE.verify) as client:
         response = await client.patch(url, json=payload, auth=auth)  # type: ignore[arg-type]
         response.raise_for_status()
     logger.info(
