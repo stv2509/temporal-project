@@ -11,11 +11,13 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.local/bin:${PATH}"
 
 RUN uv python install ${PYTHON_VERSION} && uv python pin ${PYTHON_VERSION}
+ENV PYTHON_HOME=/opt/python/cpython-${PYTHON_VERSION}-linux-x86_64-gnu
+ENV PATH="${PYTHON_HOME}/bin:${PATH}"
 
 WORKDIR /app
 
 COPY backend/requirements.txt /app/backend/requirements.txt
-RUN uv pip install --system -r /app/backend/requirements.txt
+RUN python -m pip install --upgrade pip && python -m pip install -U -r /app/backend/requirements.txt
 
 COPY . /app
 
