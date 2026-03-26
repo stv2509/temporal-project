@@ -31,6 +31,8 @@ pip install -r worker/requirements.txt
 
 - `TEMPORAL_HOST` — адрес Temporal.
 - `TEMPORAL_NAMESPACE` — namespace Temporal (`test`, `prod`, `dev`).
+- `DB_ENGINE` — режим БД: `sqlite` (локально) или `postgres`.
+- `POSTGRES_HOST`/`POSTGRES_PORT`/`POSTGRES_DB`/`POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_SCHEMA` — параметры PostgreSQL (используются при `DB_ENGINE=postgres`).
 - `AWX_ENV` — контур AWX (`test`/`prod`), где `dev` обычно маппится на `test`.
 - `CA_BUNDLE_PATH` — CA bundle для TLS verification в worker (httpx). Допустимые значения:
   - путь к PEM-файлу с CA bundle
@@ -42,6 +44,12 @@ pip install -r worker/requirements.txt
 - `test`: `TEMPORAL_NAMESPACE=test`, `AWX_ENV=test`
 - `prod`: `TEMPORAL_NAMESPACE=prod`, `AWX_ENV=prod`
 - `dev`: `TEMPORAL_NAMESPACE=dev`, `AWX_ENV=test`
+
+### Режимы базы данных (dual-mode)
+
+- `DB_ENGINE=sqlite` — локальная разработка, используется файл `backend/db.sqlite3`.
+- `DB_ENGINE=postgres` — подключение к PostgreSQL.
+- Для PostgreSQL выставляется `search_path` как `POSTGRES_SCHEMA,public` (по умолчанию схема `portal`).
 
 ## Запуск
 
@@ -101,7 +109,30 @@ WORKER_DOMAIN=vm_create TEMPORAL_TASK_QUEUE_VM_CREATE=vm-create-task-queue pytho
 
 Сейчас в реестре активен **только** `k8s_access`; блок `vm_create` — заготовка. Пока домен не зарегистрирован и не реализован под `worker/domains/vm_create/`, второй процесс с `WORKER_DOMAIN=vm_create` не нужен.
 
-**Docker (идея на будущее).** Один образ, один `CMD` (`python worker/worker.py`), **несколько сервисов** в compose/k8s с разным `environment`: у каждого свой `WORKER_DOMAIN` и своя `TEMPORAL_TASK_QUEUE_*`. Подробнее по переменным воркера — `worker/README.md`.
+## Docker
+
+Добавлены отдельные Dockerfile для backend и worker:
+
+- `docker/backend/Dockerfile`
+- `docker/worker/Dockerfile`
+
+Оба образа используют базу `registry.red-soft.ru/ubi8/ubi-minimal:8.0.2-260324`, устанавливают `uv`, Python (по умолчанию `3.14.3`) и зависимости из соответствующих `requirements.txt`.
+
+Сборка образов:
+
+```bash
+docker build -f docker/backend/Dockerfile -t temporal-backend:dev .
+docker build -f docker/worker/Dockerfile -t temporal-worker:dev .
+```
+
+Смена версии Python при сборке:
+
+```bash
+docker build -f docker/backend/Dockerfile --build-arg PYTHON_VERSION=3.13.9 -t temporal-backend:dev .
+docker build -f docker/worker/Dockerfile --build-arg PYTHON_VERSION=3.13.9 -t temporal-worker:dev .
+```
+
+Worker-образ один для всех доменов. Нужный домен выбирается env-переменной `WORKER_DOMAIN` (`k8s_access`, позже `vm_create`).
 
 ## Как работает роутинг
 
