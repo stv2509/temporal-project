@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: autoops-backend
+  labels:
+    app: autoops-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: autoops-backend
+  template:
+    metadata:
+      labels:
+        app: autoops-backend
+    spec:
+      containers:
+        - name: backend
+          image: stv2509/autoops-backend:260326
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: backend-env

@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-env
+  labels:
+    app: autoops-backend
+data:
+  SECRET_KEY: "your-secret-key-here"
+  DEBUG: "True"
+  ALLOWED_HOSTS: "localhost 127.0.0.1 portal.test.local"
+  CSRF_TRUSTED_ORIGINS: "http://localhost:8000 https://portal.test.local"
+  DB_ENGINE: "sqlite"
+  TEMPORAL_HOST: "localhost:7233"
+  TEMPORAL_NAMESPACE: "default"
+  TEMPORAL_TASK_QUEUE_K8S_ACCESS: "awx-task-queue"
+  TEMPORAL_WORKFLOW_K8S_ACCESS: "K8sAccessCheckWorkflow"
+  AWX_ENV: "test"
+  CA_BUNDLE_PATH: "true"
+  BACKEND_API_URL: "http://localhost:8000"
+  BACKEND_API_USER: "admin"
+  BACKEND_API_PASSWORD: ""
