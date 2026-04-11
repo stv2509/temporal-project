@@ -1,0 +1,17 @@
+# Ресурс temporal.io/v1alpha1 — адрес фронтенда Temporal для temporal-worker-controller.
+# Имя должно совпадать с spec.workerOptions.connectionRef.name в TemporalWorkerDeployment.
+#
+# K8s: namespaced CR — создавайте в том же namespace, что TemporalWorkerDeployment и Pod воркера
+# (connectionRef не задаёт namespace: ссылка только по имени в текущем namespace).
+# Перед применением нужен CRD из чарта temporal-worker-controller-crds
+# (см. https://github.com/temporalio/temporal-worker-controller/tree/main/helm/temporal-worker-controller-crds).
+# Пример: kubectl apply -f worker-k8s-access-temporalconnection.yaml -n <ваш-namespace>
+apiVersion: temporal.io/v1alpha1
+kind: TemporalConnection
+metadata:
+  name: autoops-temporal
+  labels:
+    app: autoops-worker-k8s-access
+spec:
+  # Формат host:port (см. CRD temporalconnections.temporal.io).
+  hostPort: temporal-frontend.temporal.svc.cluster.local:7233

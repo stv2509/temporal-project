@@ -1,0 +1,43 @@
+apiVersion: temporal.io/v1alpha1
+kind: TemporalWorkerDeployment
+metadata:
+  name: autoops-worker-k8s-access
+  labels:
+    app: autoops-worker-k8s-access
+spec:
+  replicas: 1
+  # Обязательное поле CRD: задержки после drain старой версии (дефолты в CRD — 1h / 24h).
+  sunset: {}
+  rollout:
+    strategy: AllAtOnce
+  # Ссылка на TemporalConnection в том же namespace + namespace на стороне Temporal.
+  workerOptions:
+    connectionRef:
+      name: autoops-temporal
+    temporalNamespace: default
+  template:
+    spec:
+      volumes:
+        - name: ca-bundle-certs
+          secret:
+            secretName: ca-bundle-certs
+            items:
+              - key: bundle-ca.crt
+                path: ca-bundle.crt
+            defaultMode: 420
+      containers:
+        - name: worker
+          image: harbor.nsd.ru/autoops/temporal-worker:260326
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: worker-k8s-access-env
+          resources:
+            limits:
+              memory: 128Mi
+            requests:
+              memory: 128Mi
+          volumeMounts:
+            - name: ca-bundle-certs
+              readOnly: true
+              mountPath: /etc/ssl/certs
