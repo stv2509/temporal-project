@@ -105,6 +105,10 @@ kubectl apply -f k8s/worker-k8s-access-temporalworkerdeployment.yaml -n <namespa
 
 Оператор подставляет в контейнер воркера, среди прочего: `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_DEPLOYMENT_NAME`, `TEMPORAL_WORKER_BUILD_ID`. Их **не дублируйте** в `ConfigMap`, если ими управляет контроллер (см. `k8s/worker-k8s-access-configmap.yaml`).
 
+### Django и внутренний `BACKEND_API_URL`
+
+Запросы с Pod воркера идут на Service (например `http://autoops-backend/...`) — в HTTP заголовке **`Host: autoops-backend`**, а не хост внешнего портала. Добавьте это имя в **`ALLOWED_HOSTS`** Django (см. `k8s/backend-configmap.yaml`, `.env.example`). Иначе типичный ответ — **HTTP 400** (`DisallowedHost`); воркер поясняет это в тексте activity при 400.
+
 ## Реестр доменов
 
 - Реестр находится в `worker/registry.py`.

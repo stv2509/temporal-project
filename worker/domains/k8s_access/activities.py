@@ -14,7 +14,7 @@ from worker.shared.backend_api import (
     get_backend_api_config,
     request_detail_url,
 )
-from worker.shared.network_errors import is_backend_connection_error, raise_backend_connect_failed
+from worker.shared.network_errors import raise_backend_connect_failed, raise_backend_http_400_hint
 
 logger = logging.getLogger(__name__)
 
@@ -38,16 +38,19 @@ async def get_request_data(ticket_id: str) -> dict:
     try:
         async with httpx.AsyncClient(timeout=30.0, verify=AWX_PROFILE.verify) as client:
             response = await client.get(url, auth=auth)
-            response.raise_for_status()
-    except Exception as e:
-        if is_backend_connection_error(e):
-            raise_backend_connect_failed(
-                base_url=BACKEND_API.base_url,
-                method="GET",
-                url=url,
-                exc=e,
-            )
-        raise
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 400:
+                    raise_backend_http_400_hint(method="GET", url=url, exc=e)
+                raise
+    except (httpx.ConnectError, httpx.ConnectTimeout) as e:
+        raise_backend_connect_failed(
+            base_url=BACKEND_API.base_url,
+            method="GET",
+            url=url,
+            exc=e,
+        )
     data = response.json()
     logger.info("get_request_data ticket_id=%s", ticket_id)
     return data
@@ -115,16 +118,19 @@ async def update_request_status(
     try:
         async with httpx.AsyncClient(timeout=15.0, verify=AWX_PROFILE.verify) as client:
             response = await client.patch(url, json=payload, auth=auth)  # type: ignore[arg-type]
-            response.raise_for_status()
-    except Exception as e:
-        if is_backend_connection_error(e):
-            raise_backend_connect_failed(
-                base_url=BACKEND_API.base_url,
-                method="PATCH",
-                url=url,
-                exc=e,
-            )
-        raise
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 400:
+                    raise_backend_http_400_hint(method="PATCH", url=url, exc=e)
+                raise
+    except (httpx.ConnectError, httpx.ConnectTimeout) as e:
+        raise_backend_connect_failed(
+            base_url=BACKEND_API.base_url,
+            method="PATCH",
+            url=url,
+            exc=e,
+        )
     logger.info(
         "update_request_status ticket_id=%s status=%s awx=%s",
         ticket_id,

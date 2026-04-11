@@ -7,7 +7,8 @@ metadata:
 data:
   SECRET_KEY: "your-secret-key-here"
   DEBUG: "True"
-  ALLOWED_HOSTS: "localhost 127.0.0.1 portal.test.local"
+  # Включая имя Kubernetes Service (Temporal worker → http://autoops-backend/...).
+  ALLOWED_HOSTS: "localhost 127.0.0.1 portal.test.local autoops-backend"
   CSRF_TRUSTED_ORIGINS: "http://localhost:8000 https://portal.test.local"
   DB_ENGINE: "sqlite"
   TEMPORAL_HOST: "localhost:7233"
