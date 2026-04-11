@@ -14,6 +14,7 @@ from worker.shared.backend_api import (
     get_backend_api_config,
     request_detail_url,
 )
+from worker.shared.network_errors import is_backend_connection_error, raise_backend_connect_failed
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +35,19 @@ async def get_request_data(ticket_id: str) -> dict:
     """GET request data from DRF API."""
     url = request_detail_url(BACKEND_API, ticket_id)
     auth = _api_auth()
-    async with httpx.AsyncClient(timeout=30.0, verify=AWX_PROFILE.verify) as client:
-        response = await client.get(url, auth=auth)
-        response.raise_for_status()
+    try:
+        async with httpx.AsyncClient(timeout=30.0, verify=AWX_PROFILE.verify) as client:
+            response = await client.get(url, auth=auth)
+            response.raise_for_status()
+    except Exception as e:
+        if is_backend_connection_error(e):
+            raise_backend_connect_failed(
+                base_url=BACKEND_API.base_url,
+                method="GET",
+                url=url,
+                exc=e,
+            )
+        raise
     data = response.json()
     logger.info("get_request_data ticket_id=%s", ticket_id)
     return data
@@ -101,9 +112,19 @@ async def update_request_status(
     payload: dict = {"status": status}
     if awx is not None:
         payload["awx"] = awx
-    async with httpx.AsyncClient(timeout=15.0, verify=AWX_PROFILE.verify) as client:
-        response = await client.patch(url, json=payload, auth=auth)  # type: ignore[arg-type]
-        response.raise_for_status()
+    try:
+        async with httpx.AsyncClient(timeout=15.0, verify=AWX_PROFILE.verify) as client:
+            response = await client.patch(url, json=payload, auth=auth)  # type: ignore[arg-type]
+            response.raise_for_status()
+    except Exception as e:
+        if is_backend_connection_error(e):
+            raise_backend_connect_failed(
+                base_url=BACKEND_API.base_url,
+                method="PATCH",
+                url=url,
+                exc=e,
+            )
+        raise
     logger.info(
         "update_request_status ticket_id=%s status=%s awx=%s",
         ticket_id,

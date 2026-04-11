@@ -1,5 +1,6 @@
 """Worker runtime runner with domain registry support."""
 
+import asyncio
 import logging
 import os
 import sys
@@ -61,7 +62,20 @@ async def run_worker() -> None:
     task_queue = registration.resolve_task_queue()
     deployment_config = _worker_deployment_config_from_env()
 
-    client = await Client.connect(temporal_target, namespace=temporal_namespace)
+    try:
+        client = await Client.connect(temporal_target, namespace=temporal_namespace)
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        hint = (
+            f"Не удалось подключиться к Temporal: {temporal_target!r} "
+            f"(namespace={temporal_namespace!r}). "
+            "Адрес задаётся через TEMPORAL_ADDRESS (K8s, worker-controller) "
+            "или TEMPORAL_HOST (локально, .env). См. .env.example. "
+            "Проверьте доступность frontend Temporal с этой машины/Pod, порт и TLS."
+        )
+        logger.exception("%s Исходная ошибка: %s: %s", hint, type(e).__name__, e)
+        raise RuntimeError(f"{hint} Детали: {e}") from e
     worker = Worker(
         client,
         task_queue=task_queue,
