@@ -12,6 +12,7 @@ class RequestStatus(models.TextChoices):
     IN_PROGRESS = "in_progress", "In progress"
     SUCCESS = "success", "Success"
     FAILED = "failed", "Failed"
+    CANCELED = "canceled", "Canceled"
 
 
 class RequestType(models.TextChoices):

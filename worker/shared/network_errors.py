@@ -92,3 +92,31 @@ def raise_backend_connect_failed(
     dns_host = host_from_url or host_from_base
     msg += connect_failure_extra_hint(exc, hostname=dns_host)
     raise ApplicationError(msg, non_retryable=True) from exc
+
+
+def raise_awx_connect_failed(
+    *,
+    awx_base_url: str,
+    method: str,
+    url: str,
+    exc: Exception,
+) -> None:
+    """Соединение с AWX не установилось — тот же DNS-хинт, что для backend."""
+    host_from_url = http_url_hostname(url)
+    host_from_base = http_url_hostname(awx_base_url)
+    host_line = ""
+    if host_from_url or host_from_base:
+        if host_from_url == host_from_base:
+            host_line = f" Хост из URL (для резолва): {host_from_url!r}."
+        else:
+            host_line = f" Хост из полного URL: {host_from_url!r}; база AWX: {host_from_base!r}."
+    msg = (
+        f"Не удалось подключиться к AWX ({method} {url!r}). "
+        f"База URL профиля AWX: {awx_base_url!r}.{host_line} "
+        "Задаётся AWX_URL_TEST / AWX_URL_PROD или AWX_URL (см. .env.example). "
+        "Проверьте DNS из Pod, доступ до AWX и CA_BUNDLE_PATH. "
+        f"Исходная ошибка: {type(exc).__name__}: {exc}"
+    )
+    dns_host = host_from_url or host_from_base
+    msg += connect_failure_extra_hint(exc, hostname=dns_host)
+    raise ApplicationError(msg, non_retryable=True) from exc

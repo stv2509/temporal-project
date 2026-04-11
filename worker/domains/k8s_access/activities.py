@@ -14,7 +14,11 @@ from worker.shared.backend_api import (
     get_backend_api_config,
     request_detail_url,
 )
-from worker.shared.network_errors import raise_backend_connect_failed, raise_backend_http_400_hint
+from worker.shared.network_errors import (
+    raise_awx_connect_failed,
+    raise_backend_connect_failed,
+    raise_backend_http_400_hint,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -76,9 +80,17 @@ async def launch_awx_job(
             "port_dst": port_dst,
         }
     }
-    async with httpx.AsyncClient(timeout=120.0, verify=AWX_PROFILE.verify) as client:
-        response = await client.post(url, json=payload, auth=auth)
-        response.raise_for_status()
+    try:
+        async with httpx.AsyncClient(timeout=120.0, verify=AWX_PROFILE.verify) as client:
+            response = await client.post(url, json=payload, auth=auth)
+            response.raise_for_status()
+    except (httpx.ConnectError, httpx.ConnectTimeout) as e:
+        raise_awx_connect_failed(
+            awx_base_url=AWX_PROFILE.url,
+            method="POST",
+            url=url,
+            exc=e,
+        )
     result = response.json()
     job_id = result.get("id")
     logger.info("launch_awx_job template_id=%s job_id=%s", awx_template_id, job_id)
@@ -94,9 +106,17 @@ async def get_awx_job_status(job_id: int) -> dict:
     if not auth:
         raise ValueError("AWX_USERNAME/AWX_PASSWORD not set")
     url = f"{AWX_PROFILE.url}/api/v2/jobs/{job_id}/"
-    async with httpx.AsyncClient(timeout=30.0, verify=AWX_PROFILE.verify) as client:
-        response = await client.get(url, auth=auth)
-        response.raise_for_status()
+    try:
+        async with httpx.AsyncClient(timeout=30.0, verify=AWX_PROFILE.verify) as client:
+            response = await client.get(url, auth=auth)
+            response.raise_for_status()
+    except (httpx.ConnectError, httpx.ConnectTimeout) as e:
+        raise_awx_connect_failed(
+            awx_base_url=AWX_PROFILE.url,
+            method="GET",
+            url=url,
+            exc=e,
+        )
     data = response.json()
     status_val = data.get("status", "unknown")
     message = (data.get("result_traceback") or data.get("job_explanation") or "").strip() or None

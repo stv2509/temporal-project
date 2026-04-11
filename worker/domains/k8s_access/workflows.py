@@ -4,6 +4,7 @@ from datetime import timedelta
 
 from temporalio import workflow
 from temporalio.common import VersioningBehavior
+from temporalio.exceptions import is_cancelled_exception
 
 with workflow.unsafe.imports_passed_through():
     from worker.domains.k8s_access.activities import (
@@ -81,7 +82,23 @@ class K8sAccessCheckWorkflow:
                 start_to_close_timeout=timedelta(seconds=15),
             )
             return {"status": request_status, "awx_status": awx_final_status}
-        except Exception as e:
+        except BaseException as e:
+            if is_cancelled_exception(e):
+                # Ручная отмена: не глотаем — Temporal покажет Canceled, а не Completed.
+                try:
+                    await workflow.execute_activity(
+                        update_request_status,
+                        args=[ticket_id, "canceled"],
+                        start_to_close_timeout=timedelta(seconds=15),
+                    )
+                except BaseException:
+                    workflow.logger.exception(
+                        "update_request_status(canceled) при отмене workflow: ticket_id=%s",
+                        ticket_id,
+                    )
+                raise
+            if not isinstance(e, Exception):
+                raise
             workflow.logger.exception("AWX job failed: %s", e)
             await workflow.execute_activity(
                 update_request_status,
