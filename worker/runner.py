@@ -20,6 +20,7 @@ if str(_repo_root) not in sys.path:
 load_dotenv(_repo_root / ".env")
 
 from worker.registry import get_domain_registration  # noqa: E402
+from worker.shared.network_errors import connect_failure_extra_hint  # noqa: E402
 
 
 def _resolve_temporal_target() -> str:
@@ -74,6 +75,7 @@ async def run_worker() -> None:
             "или TEMPORAL_HOST (локально, .env). См. .env.example. "
             "Проверьте доступность frontend Temporal с этой машины/Pod, порт и TLS."
         )
+        hint += connect_failure_extra_hint(e)
         logger.exception("%s Исходная ошибка: %s: %s", hint, type(e).__name__, e)
         raise RuntimeError(f"{hint} Детали: {e}") from e
     worker = Worker(

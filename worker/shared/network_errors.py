@@ -4,6 +4,23 @@ import httpx
 from temporalio.exceptions import ApplicationError
 
 
+def connect_failure_extra_hint(exc: BaseException) -> str:
+    """Доп. текст при типичном сбое резолва имени (getaddrinfo / DNS в Pod)."""
+    s = str(exc).lower()
+    if (
+        "name or service not known" in s
+        or "nodename nor servname" in s
+        or "failed to resolve" in s
+        or ("errno -2" in s and "name" in s)
+    ):
+        return (
+            " Похоже на DNS: имя хоста из URL не резолвится в этом контейнере. "
+            "В K8s проверьте имя Service (`kubectl get svc`), namespace Pod, "
+            "при межnamespace — FQDN `<service>.<namespace>.svc.cluster.local` и порт в URL."
+        )
+    return ""
+
+
 def raise_backend_http_400_hint(*, method: str, url: str, exc: httpx.HTTPStatusError) -> None:
     """HTTP 400 от Django: часто DisallowedHost для внутреннего Host (имя K8s Service)."""
     host = exc.request.headers.get("host", "")
@@ -35,4 +52,5 @@ def raise_backend_connect_failed(
         "NetworkPolicy. См. .env.example (BACKEND_API_URL). "
         f"Исходная ошибка: {type(exc).__name__}: {exc}"
     )
+    msg += connect_failure_extra_hint(exc)
     raise ApplicationError(msg, non_retryable=True) from exc

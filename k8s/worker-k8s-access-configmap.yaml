@@ -11,6 +11,7 @@ data:
   TEMPORAL_TASK_QUEUE_K8S_ACCESS: "awx-task-queue"
   AWX_ENV: "test"
   CA_BUNDLE_PATH: "true"
-  BACKEND_API_URL: "http://autoops-backend:8000"
+  # Как правило порт Service — 80. Локально в .env часто :8000 — см. .env.example (BACKEND_API_URL).
+  BACKEND_API_URL: "http://autoops-backend"
   BACKEND_API_USER: "admin"
   BACKEND_API_PASSWORD: ""
