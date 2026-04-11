@@ -3,6 +3,7 @@
 from datetime import timedelta
 
 from temporalio import workflow
+from temporalio.common import VersioningBehavior
 
 with workflow.unsafe.imports_passed_through():
     from worker.domains.k8s_access.activities import (
@@ -17,7 +18,7 @@ POLL_INTERVAL_SEC = 30
 POLL_MAX_ITERATIONS = 20  # 20 * 30s = 10 min max ожидания
 
 
-@workflow.defn
+@workflow.defn(versioning_behavior=VersioningBehavior.PINNED)
 class K8sAccessCheckWorkflow:
     """Workflow: получить данные заявки → запустить AWX job → обновить статус (success/failed)."""
 

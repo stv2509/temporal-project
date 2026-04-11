@@ -44,6 +44,8 @@ python worker/worker.py
 
 Если заданы **обе** `TEMPORAL_DEPLOYMENT_NAME` и `TEMPORAL_WORKER_BUILD_ID`, `runner.py` включает **Worker Versioning** (`WorkerDeploymentConfig` в SDK) — воркер регистрируется как версия Worker Deployment (в т.ч. для UI). Локально без контроллера эти переменные можно не задавать или задать обе вручную для экспериментов.
 
+При включённом Worker Versioning SDK **требует** у каждого workflow явное поведение версий: аргумент `versioning_behavior` у `@workflow.defn` из `temporalio.common.VersioningBehavior` (не оставлять `UNSPECIFIED`). Иначе при старте воркера будет `ValueError`. В проекте для `K8sAccessCheckWorkflow` задано **`PINNED`**: выполнение остаётся на версии воркера с момента старта до завершения. **`AUTO_UPGRADE`** — не «после завершения всех задач», а участие в маршрутизации Worker Deployment (новые запуски и перенос по правилам AutoUpgrade во время жизни политики); для строгой привязки одной заявки к одному build обычно берут `PINNED`.
+
 Подробности про манифесты и namespace — в разделе [Kubernetes](#kubernetes).
 
 ### AWX, backend, TLS
